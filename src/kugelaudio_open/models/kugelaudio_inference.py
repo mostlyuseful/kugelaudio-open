@@ -369,6 +369,7 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
         max_new_tokens: int = 2048,
         do_sample: bool = False,
         temperature: float = 1.0,
+        speech_end_penalty: float = 1.5,
         show_progress: bool = True,
         **kwargs,
     ) -> KugelAudioGenerationOutput:
@@ -386,6 +387,7 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
             max_new_tokens: Maximum tokens to generate
             do_sample: Whether to sample or use greedy decoding
             temperature: Sampling temperature
+            speech_end_penalty: Amount subtracted from speech_end logit (higher = less likely to stop)
             show_progress: Whether to show progress bar
 
         Returns:
@@ -509,6 +511,10 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
 
             # Apply token constraint
             logits = token_constraint(current_ids, logits)
+
+            # Penalize speech_end token to reduce premature stopping
+            if speech_end_penalty > 0:
+                logits[:, speech_end_id] = logits[:, speech_end_id] - speech_end_penalty
 
             # Sample or greedy decode
             if do_sample and temperature > 0:
