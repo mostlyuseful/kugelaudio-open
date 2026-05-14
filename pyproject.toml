@@ -44,6 +44,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Select cpu when installing with uv to source torch from the PyTorch CPU index.
+# Default/base torch resolution uses mainline PyPI, which supports CUDA environments.
+cpu = [
+    "torch>=2.0.0",
+]
+cuda = []
+
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
@@ -73,6 +80,16 @@ API = "https://api.kugelaudio.com"
 [project.scripts]
 kugelaudio = "kugelaudio_open.cli:main"
 
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
@@ -88,3 +105,7 @@ line-length = 100
 target-version = "py310"
 select = ["E", "F", "W", "I", "UP"]
 ignore = ["E501"]
+
+
+[tool.uv]
+exclude-newer = "14 days"
