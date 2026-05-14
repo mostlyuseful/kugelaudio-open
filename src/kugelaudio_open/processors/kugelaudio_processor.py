@@ -224,28 +224,31 @@ class KugelAudioProcessor:
         text: Optional[str] = None,
         voice: Optional[str] = None,
         voice_cache: Optional[dict] = None,
+        voice_prompt: Optional[Union[np.ndarray, torch.Tensor, str]] = None,
         padding: Union[bool, str, PaddingStrategy] = True,
         truncation: Union[bool, str, TruncationStrategy] = False,
         max_length: Optional[int] = None,
         return_tensors: Optional[Union[str, TensorType]] = None,
         **kwargs,
     ) -> BatchEncoding:
-        """Process text and optional pre-encoded voice.
+        """Process text with optional voice conditioning.
 
-        Voice cloning from raw audio is no longer supported. Use a pre-encoded
-        voice name or provide a voice_cache dict directly.
+        Supports both pre-encoded voices (`voice` / `voice_cache`) and raw
+        audio voice prompts (`voice_prompt`).
 
         Args:
             text: Input text to synthesize
             voice: Name of a pre-encoded voice (from voices.json registry)
             voice_cache: Pre-encoded voice features dict (alternative to voice name)
+            voice_prompt: Raw audio prompt (numpy, torch tensor, or file path)
             padding: Padding strategy
             truncation: Truncation strategy
             max_length: Maximum sequence length
             return_tensors: Return format
 
         Returns:
-            BatchEncoding with processed inputs including speech_input_mask and voice_cache
+            BatchEncoding with processed inputs including speech_input_mask and
+            either voice_cache or speech_tensors/speech_masks.
         """
         if text is None:
             raise ValueError("Text input is required")
@@ -275,6 +278,20 @@ class KugelAudioProcessor:
         loaded_voice_cache = voice_cache
         if voice is not None and voice_cache is None:
             loaded_voice_cache = self.load_voice_cache(voice)
+
+        # Load raw voice prompt if provided (used for on-the-fly voice prompting)
+        voice_audio = None
+        if voice_prompt is not None:
+            if isinstance(voice_prompt, str):
+                voice_audio = self.audio_processor._load_from_path(voice_prompt)
+                if self.db_normalize and self.audio_normalizer:
+                    voice_audio = self.audio_normalizer(voice_audio)
+            elif isinstance(voice_prompt, np.ndarray):
+                voice_audio = voice_prompt.astype(np.float32)
+            elif isinstance(voice_prompt, torch.Tensor):
+                voice_audio = voice_prompt.detach().cpu().numpy().astype(np.float32)
+                if voice_audio.ndim > 1:
+                    voice_audio = voice_audio.squeeze()
 
         # Process pre-encoded voice if available
         if loaded_voice_cache is not None:
@@ -338,6 +355,19 @@ class KugelAudioProcessor:
         # Include voice_cache in the result for the model to use
         if loaded_voice_cache is not None:
             result["voice_cache"] = loaded_voice_cache
+
+        # Include processed raw voice prompt for model-side encoding
+        if voice_audio is not None:
+            if return_tensors == "pt":
+                result["speech_tensors"] = torch.tensor(
+                    voice_audio, dtype=torch.float32
+                ).unsqueeze(0).unsqueeze(0)
+                num_frames = math.ceil(len(voice_audio) / self.speech_compression_ratio)
+                result["speech_masks"] = torch.ones(1, num_frames, dtype=torch.bool)
+            else:
+                result["speech_tensors"] = voice_audio
+                num_frames = math.ceil(len(voice_audio) / self.speech_compression_ratio)
+                result["speech_masks"] = [True] * num_frames
 
         return result
 

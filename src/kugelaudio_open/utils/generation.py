@@ -53,9 +53,6 @@ def load_model_and_processor(
 
     model.eval()
 
-    # Strip encoders to save VRAM (only decoders needed for inference)
-    model.model.strip_encoders()
-
     # Load processor
     processor = KugelAudioProcessor.from_pretrained(model_name_or_path)
 
@@ -67,14 +64,15 @@ def generate_speech(
     processor,
     text: str,
     voice: Optional[str] = None,
+    voice_prompt: Optional[Union[str, torch.Tensor]] = None,
     cfg_scale: float = 3.0,
     max_new_tokens: int = 4096,
     device: Optional[Union[str, torch.device]] = None,
 ) -> torch.Tensor:
-    """Generate speech from text using an optional pre-encoded voice.
+    """Generate speech from text with optional voice conditioning.
 
-    Voice cloning from raw audio is no longer supported. Use a pre-encoded
-    voice name from the voices.json registry instead.
+    Supports either pre-encoded voices (`voice`) or raw reference audio
+    (`voice_prompt`).
 
     All generated audio is automatically watermarked for identification.
 
@@ -83,6 +81,7 @@ def generate_speech(
         processor: KugelAudio processor
         text: Text to synthesize
         voice: Name of a pre-encoded voice (from voices.json registry)
+        voice_prompt: Raw voice prompt audio tensor or path
         cfg_scale: Classifier-free guidance scale
         max_new_tokens: Maximum number of tokens to generate
         device: Device for generation
@@ -97,8 +96,8 @@ def generate_speech(
     if device is None:
         device = next(model.parameters()).device
 
-    # Process inputs with optional pre-encoded voice
-    inputs = processor(text=text, voice=voice, return_tensors="pt")
+    # Process inputs with optional pre-encoded voice / raw prompt
+    inputs = processor(text=text, voice=voice, voice_prompt=voice_prompt, return_tensors="pt")
     inputs = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
 
     # Generate (watermark is automatically applied by the model)

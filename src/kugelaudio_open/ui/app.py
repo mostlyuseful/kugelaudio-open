@@ -134,8 +134,6 @@ def load_models(model_id: str = "kugelaudio/kugelaudio-0-open"):
                 torch_dtype=dtype,
             ).to(device)
         _model.eval()
-        # Strip encoder weights to free VRAM (only decoder needed for inference)
-        _model.model.strip_encoders()
         _current_model_id = model_id
         print(f"Model {model_id} loaded!")
 
@@ -161,15 +159,17 @@ def load_models(model_id: str = "kugelaudio/kugelaudio-0-open"):
 def generate_speech(
     text: str,
     voice_name: Optional[str] = None,
+    reference_audio: Optional[Tuple[int, np.ndarray]] = None,
     model_choice: str = "kugelaudio-0-open",
     cfg_scale: float = 3.0,
     max_tokens: int = 2048,
 ) -> Tuple[int, np.ndarray]:
-    """Generate speech from text using a pre-encoded voice.
+    """Generate speech from text using optional voice conditioning.
 
     Args:
         text: Text to synthesize
         voice_name: Name of a pre-encoded voice (from voices.json registry)
+        reference_audio: Optional reference audio prompt for voice cloning
         model_choice: Model variant to use
         cfg_scale: Classifier-free guidance scale
         max_tokens: Maximum generation tokens
@@ -187,11 +187,22 @@ def generate_speech(
     model, processor, watermark = load_models(model_id)
     device = next(model.parameters()).device
 
-    # Process text input with optional pre-encoded voice
+    # Process text input with optional pre-encoded voice and/or reference audio
+    kwargs = {}
     if voice_name and voice_name != "None":
-        inputs = processor(text=text.strip(), voice=voice_name, return_tensors="pt")
-    else:
-        inputs = processor(text=text.strip(), return_tensors="pt")
+        kwargs["voice"] = voice_name
+    if reference_audio is not None:
+        ref_sr, ref_audio = reference_audio
+        if ref_audio is not None:
+            ref_audio = ref_audio.astype(np.float32)
+            if ref_audio.ndim > 1:
+                ref_audio = ref_audio.mean(axis=-1)
+            if ref_sr != 24000:
+                import librosa
+
+                ref_audio = librosa.resample(ref_audio, orig_sr=ref_sr, target_sr=24000)
+            kwargs["voice_prompt"] = ref_audio
+    inputs = processor(text=text.strip(), return_tensors="pt", **kwargs)
 
     # Move tensors to device, keep dicts as-is
     model_inputs = {}
@@ -315,8 +326,14 @@ def create_app() -> "gr.Blocks":
                         voice_dropdown = gr.Dropdown(
                             choices=["None"] + _get_available_voices(),
                             value="None",
-                            label="Voice (Optional)",
-                            info="Select a pre-encoded voice or leave as None for default",
+                            label="Voice Reference (Optional)",
+                            info="Select a pre-encoded voice",
+                        )
+
+                        reference_audio = gr.Audio(
+                            label="Reference Audio Prompt (Optional)",
+                            type="numpy",
+                            sources=["upload", "microphone"],
                         )
 
                         with gr.Accordion("Advanced Settings", open=False):
@@ -362,7 +379,7 @@ def create_app() -> "gr.Blocks":
 
                 generate_btn.click(
                     fn=generate_speech,
-                    inputs=[text_input, voice_dropdown, model_choice, cfg_scale, max_tokens],
+                    inputs=[text_input, voice_dropdown, reference_audio, model_choice, cfg_scale, max_tokens],
                     outputs=[output_audio],
                 )
 
