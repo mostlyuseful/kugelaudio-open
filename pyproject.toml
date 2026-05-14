@@ -30,7 +30,6 @@ classifiers = [
 keywords = ["tts", "speech-synthesis", "diffusion", "transformer", "audio"]
 
 dependencies = [
-    "torch>=2.0.0",
     "transformers>=4.40.0",
     "accelerate>=1.0.0",
     "diffusers>=0.25.0",
@@ -44,12 +43,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Select cpu when installing with uv to source torch from the PyTorch CPU index.
-# Default/base torch resolution uses mainline PyPI, which supports CUDA environments.
+# Choose exactly one torch variant:
+# - cpu: installs torch from the PyTorch CPU wheel index
+# - cuda: installs torch from mainline PyPI
 cpu = [
     "torch>=2.0.0",
 ]
-cuda = []
+cuda = [
+    "torch>=2.0.0",
+]
 
 dev = [
     "pytest>=7.0.0",
@@ -66,6 +68,7 @@ ui = [
     "gradio>=4.0.0",
 ]
 all = [
+    "torch>=2.0.0",
     "gradio>=4.0.0",
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.22.0",
@@ -79,6 +82,15 @@ API = "https://api.kugelaudio.com"
 
 [project.scripts]
 kugelaudio = "kugelaudio_open.cli:main"
+
+[tool.uv]
+conflicts = [
+    [
+        { extra = "cpu" },
+        { extra = "cuda" },
+    ],
+]
+exclude-newer = "14 days"
 
 [tool.uv.sources]
 torch = [
@@ -106,6 +118,3 @@ target-version = "py310"
 select = ["E", "F", "W", "I", "UP"]
 ignore = ["E501"]
 
-
-[tool.uv]
-exclude-newer = "14 days"

@@ -173,8 +173,8 @@ pip install uv
 git clone https://github.com/Kugelaudio/kugelaudio-open.git
 cd kugelaudio-open
 
-# Sync dependencies (default: PyPI torch, suitable for CUDA-capable environments). If you rock a CUDA system, you can skip this step.
-uv sync
+# Sync dependencies for CUDA-capable environments (torch from PyPI)
+uv sync --extra cuda
 
 # Or for CPU-only PyTorch builds
 uv sync --extra cpu
@@ -183,12 +183,15 @@ uv sync --extra cpu
 uv run python start.py
 ```
 
-`uv sync` uses the default PyPI `torch` package. `uv sync --extra cpu` installs `torch` from the PyTorch CPU wheel index.
+Choose exactly one torch variant:
+- `uv sync --extra cuda` uses the default PyPI `torch` package
+- `uv sync --extra cpu` installs `torch` from the PyTorch CPU wheel index
 
 ### Launch Web Interface
 
 ```bash
 # Quick start with uv (recommended)
+uv sync --extra cuda
 uv run python start.py
 
 # With a public share link
