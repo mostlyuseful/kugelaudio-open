@@ -22,6 +22,7 @@ _model = None
 _processor = None
 _watermark = None
 _current_model_id = None  # Track which model is loaded
+_current_processor_model_id = None  # Track which model the processor was loaded for
 
 
 def get_device():
@@ -33,12 +34,28 @@ def get_device():
     return "cpu"
 
 
-def _get_available_voices():
-    """Get list of available pre-encoded voices from the loaded processor."""
-    global _processor
-    if _processor is not None:
-        return _processor.get_available_voices()
-    return []
+def _load_processor(model_id: str = "kugelaudio/kugelaudio-0-open"):
+    """Load processor only, without loading model weights."""
+    global _processor, _current_processor_model_id
+
+    from kugelaudio_open.processors import KugelAudioProcessor
+
+    if _processor is None or _current_processor_model_id != model_id:
+        _processor = KugelAudioProcessor.from_pretrained(model_id)
+        _current_processor_model_id = model_id
+    return _processor
+
+def _get_available_voices(model_id: str = "kugelaudio/kugelaudio-0-open"):
+    """Get list of available pre-encoded voices for a model."""
+    processor = _load_processor(model_id)
+    return processor.get_available_voices()
+
+
+def _update_voice_dropdown(model_choice: str):
+    """Refresh voice dropdown choices when model changes."""
+    model_id = f"kugelaudio/{model_choice}"
+    voices = ["None"] + _get_available_voices(model_id)
+    return gr.update(choices=voices, value="None")
 
 
 def _warmup_model(model, processor=None):
@@ -99,7 +116,7 @@ def _warmup_model(model, processor=None):
 
 def load_models(model_id: str = "kugelaudio/kugelaudio-0-open"):
     """Load model and processor. Switches model if a different model_id is requested."""
-    global _model, _processor, _watermark, _current_model_id
+    global _model, _processor, _watermark, _current_model_id, _current_processor_model_id
 
     from kugelaudio_open.models import KugelAudioForConditionalGenerationInference
     from kugelaudio_open.processors import KugelAudioProcessor
@@ -117,6 +134,7 @@ def load_models(model_id: str = "kugelaudio/kugelaudio-0-open"):
             del _processor
             _model = None
             _processor = None
+            _current_processor_model_id = None
             # Clear CUDA cache to free memory
             if device == "cuda":
                 torch.cuda.empty_cache()
@@ -137,8 +155,9 @@ def load_models(model_id: str = "kugelaudio/kugelaudio-0-open"):
         _current_model_id = model_id
         print(f"Model {model_id} loaded!")
 
-    if _processor is None:
+    if _processor is None or _current_processor_model_id != model_id:
         _processor = KugelAudioProcessor.from_pretrained(model_id)
+        _current_processor_model_id = model_id
 
     # Warmup to eliminate first-generation slowness from CUDA kernel compilation
     # Do this after processor is loaded so we can run a mini-generation
@@ -324,7 +343,7 @@ def create_app() -> "gr.Blocks":
                         )
 
                         voice_dropdown = gr.Dropdown(
-                            choices=["None"] + _get_available_voices(),
+                            choices=["None"] + _get_available_voices("kugelaudio/kugelaudio-0-open"),
                             value="None",
                             label="Voice Reference (Optional)",
                             info="Select a pre-encoded voice",
@@ -376,6 +395,12 @@ def create_app() -> "gr.Blocks":
                         - Leave voice as "None" for default generation
                         """
                         )
+
+                model_choice.change(
+                    fn=_update_voice_dropdown,
+                    inputs=[model_choice],
+                    outputs=[voice_dropdown],
+                )
 
                 generate_btn.click(
                     fn=generate_speech,
