@@ -202,6 +202,7 @@ class KugelAudioConfig(PretrainedConfig):
 
     sub_configs = {
         "acoustic_tokenizer_config": KugelAudioAcousticTokenizerConfig,
+        "semantic_tokenizer_config": KugelAudioSemanticTokenizerConfig,
         "decoder_config": Qwen2Config,
         "diffusion_head_config": KugelAudioDiffusionHeadConfig,
     }
@@ -220,7 +221,7 @@ class KugelAudioConfig(PretrainedConfig):
     def __init__(
         self,
         acoustic_tokenizer_config=None,
-        semantic_tokenizer_config=None,  # Kept for backward compat (ignored)
+        semantic_tokenizer_config=None,
         decoder_config=None,
         diffusion_head_config=None,
         **kwargs,
@@ -239,8 +240,16 @@ class KugelAudioConfig(PretrainedConfig):
         elif isinstance(acoustic_tokenizer_config, KugelAudioAcousticTokenizerConfig):
             self.acoustic_tokenizer_config = acoustic_tokenizer_config
 
-        # semantic_tokenizer_config is accepted but ignored (backward compat)
-        # Voices are now pre-encoded and loaded from HuggingFace
+        # Initialize semantic tokenizer config
+        if semantic_tokenizer_config is None:
+            self.semantic_tokenizer_config = self.sub_configs["semantic_tokenizer_config"]()
+        elif isinstance(semantic_tokenizer_config, dict):
+            semantic_tokenizer_config["model_type"] = "kugelaudio_semantic_tokenizer"
+            self.semantic_tokenizer_config = self.sub_configs["semantic_tokenizer_config"](
+                **semantic_tokenizer_config
+            )
+        elif isinstance(semantic_tokenizer_config, KugelAudioSemanticTokenizerConfig):
+            self.semantic_tokenizer_config = semantic_tokenizer_config
 
         # Initialize decoder (language model) config
         if decoder_config is None:
@@ -268,6 +277,7 @@ class KugelAudioConfig(PretrainedConfig):
 
         # Derived parameters
         self.acoustic_vae_dim = self.acoustic_tokenizer_config.vae_dim
+        self.semantic_vae_dim = self.semantic_tokenizer_config.vae_dim
 
         super().__init__(**kwargs)
 
