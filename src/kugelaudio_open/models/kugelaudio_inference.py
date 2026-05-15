@@ -116,11 +116,11 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
 
     @property
     def semantic_tokenizer(self):
-        return self.model.semantic_tokenizer
+        return getattr(self.model, "semantic_tokenizer", None)
 
     @property
     def semantic_connector(self):
-        return self.model.semantic_connector
+        return getattr(self.model, "semantic_connector", None)
 
     def get_input_embeddings(self):
         return self.model.get_input_embeddings()
@@ -165,8 +165,10 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
                     speech_tensors = speech_tensors.unsqueeze(1)
                 acoustic_output = self.acoustic_tokenizer.encode(speech_tensors)
                 acoustic_features, _ = self.acoustic_tokenizer.sampling(acoustic_output)
-                semantic_output = self.semantic_tokenizer.encode(speech_tensors)
-                semantic_features = semantic_output.mean
+                semantic_features = None
+                if self.semantic_tokenizer is not None:
+                    semantic_output = self.semantic_tokenizer.encode(speech_tensors)
+                    semantic_features = semantic_output.mean
             if speech_masks is None:
                 batch_size = acoustic_features.shape[0]
                 seq_len = acoustic_features.shape[1]
@@ -191,7 +193,7 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
             ) * self.speech_scaling_factor
 
         acoustic_embed = self.acoustic_connector(acoustic_features)
-        if semantic_features is not None:
+        if semantic_features is not None and self.semantic_connector is not None:
             semantic_embed = self.semantic_connector(semantic_features)
             speech_embeds = (acoustic_embed + semantic_embed)[speech_masks.cpu()]
         else:

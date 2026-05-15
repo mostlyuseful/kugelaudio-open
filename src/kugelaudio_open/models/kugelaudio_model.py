@@ -128,14 +128,23 @@ class KugelAudioModel(KugelAudioPreTrainedModel):
         self.language_model = AutoModel.from_config(lm_config)
 
         self.acoustic_tokenizer = AutoModel.from_config(config.acoustic_tokenizer_config).to(dtype)
-        self.semantic_tokenizer = AutoModel.from_config(config.semantic_tokenizer_config).to(dtype)
+
+        semantic_tokenizer_config = getattr(config, "semantic_tokenizer_config", None)
+        semantic_vae_dim = getattr(config, "semantic_vae_dim", None)
+        if semantic_tokenizer_config is not None:
+            self.semantic_tokenizer = AutoModel.from_config(semantic_tokenizer_config).to(dtype)
+            semantic_vae_dim = semantic_vae_dim or getattr(semantic_tokenizer_config, "vae_dim", None)
+        else:
+            self.semantic_tokenizer = None
 
         self.acoustic_connector = SpeechConnector(
             config.acoustic_vae_dim, lm_config.hidden_size
         ).to(dtype)
-        self.semantic_connector = SpeechConnector(
-            config.semantic_vae_dim, lm_config.hidden_size
-        ).to(dtype)
+        self.semantic_connector = (
+            SpeechConnector(semantic_vae_dim, lm_config.hidden_size).to(dtype)
+            if semantic_vae_dim is not None
+            else None
+        )
 
         # Register scaling factors as buffers - use 1D tensors for FSDP compatibility
         self.register_buffer("speech_scaling_factor", torch.tensor(float("nan")))
@@ -165,7 +174,7 @@ class KugelAudioModel(KugelAudioPreTrainedModel):
         if hasattr(self.acoustic_tokenizer, "encoder"):
             del self.acoustic_tokenizer.encoder
             self.acoustic_tokenizer.encoder = None
-        if hasattr(self.semantic_tokenizer, "encoder"):
+        if self.semantic_tokenizer is not None and hasattr(self.semantic_tokenizer, "encoder"):
             del self.semantic_tokenizer.encoder
             self.semantic_tokenizer.encoder = None
 
