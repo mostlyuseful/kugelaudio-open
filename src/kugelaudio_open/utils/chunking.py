@@ -17,33 +17,48 @@ class ChunkPlan:
     """Chunk plan for a piece of text.
 
     Attributes:
-        chunks: Final text chunks in generation order.
+        chunks: Final text chunks in generation order, including any optional
+            overlap prefix.
         boundary_types: Split strategy used to create each chunk. The first chunk is
             labeled with the strategy that primarily determined its size.
+        overlap_prefixes: Context carried over from the previous chunk. Empty for the
+            first chunk and when overlap is disabled or unavailable.
+        new_texts: The non-overlap portion newly introduced by each chunk.
     """
 
     chunks: List[str]
     boundary_types: List[BoundaryType]
+    overlap_prefixes: List[str]
+    new_texts: List[str]
 
 
-def split_text_into_chunks(text: str, max_words_per_chunk: int) -> ChunkPlan:
+def split_text_into_chunks(
+    text: str,
+    max_words_per_chunk: int,
+    overlap_sentences: int = 0,
+) -> ChunkPlan:
     """Split text into sentence/clause-aware chunks.
 
     Args:
         text: Input text to split.
         max_words_per_chunk: Maximum number of words per output chunk. Must be > 0.
+        overlap_sentences: Number of completed trailing sentences from the previous
+            chunk to prepend as overlap context. Must be >= 0.
 
     Returns:
         ChunkPlan containing final chunks and their boundary types.
 
     Raises:
-        ValueError: If text is empty/whitespace or max_words_per_chunk <= 0.
+        ValueError: If text is empty/whitespace, max_words_per_chunk <= 0, or
+            overlap_sentences < 0.
     """
     normalized = text.strip()
     if not normalized:
         raise ValueError("Text input is required")
     if max_words_per_chunk <= 0:
         raise ValueError("max_words_per_chunk must be greater than 0")
+    if overlap_sentences < 0:
+        raise ValueError("overlap_sentences must be greater than or equal to 0")
 
     sentence_candidates = _split_sentences(normalized)
     chunks: List[str] = []
@@ -71,8 +86,24 @@ def split_text_into_chunks(text: str, max_words_per_chunk: int) -> ChunkPlan:
         chunks.append(" ".join(current_parts).strip())
         boundary_types.append(current_boundary)
 
-    return ChunkPlan(chunks=chunks, boundary_types=boundary_types)
+    overlap_prefixes = [""]
+    new_texts = [chunks[0]] if chunks else []
+    overlapped_chunks = [chunks[0]] if chunks else []
 
+    for idx in range(1, len(chunks)):
+        overlap_prefix = _extract_overlap_prefix(chunks[idx - 1], overlap_sentences)
+        overlap_prefixes.append(overlap_prefix)
+        new_texts.append(chunks[idx])
+        overlapped_chunks.append(
+            f"{overlap_prefix} {chunks[idx]}".strip() if overlap_prefix else chunks[idx]
+        )
+
+    return ChunkPlan(
+        chunks=overlapped_chunks,
+        boundary_types=boundary_types,
+        overlap_prefixes=overlap_prefixes,
+        new_texts=new_texts,
+    )
 
 def _split_sentences(text: str) -> List[str]:
     sentences = [segment.strip() for segment in _SENTENCE_SPLIT_RE.split(text) if segment.strip()]
@@ -129,3 +160,14 @@ def _word_count(text: str) -> int:
 def _merge_boundary_type(current: BoundaryType, incoming: BoundaryType) -> BoundaryType:
     priority = {"sentence": 0, "clause": 1, "hard_wrap": 2}
     return incoming if priority[incoming] > priority[current] else current
+
+
+def _extract_overlap_prefix(text: str, overlap_sentences: int) -> str:
+    if overlap_sentences <= 0:
+        return ""
+
+    completed_sentences = [sentence for sentence in _split_sentences(text) if sentence.endswith((".", "!", "?"))]
+    if not completed_sentences:
+        return ""
+
+    return " ".join(completed_sentences[-overlap_sentences:])
