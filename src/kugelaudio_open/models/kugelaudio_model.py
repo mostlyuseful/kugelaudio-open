@@ -127,14 +127,14 @@ class KugelAudioModel(KugelAudioPreTrainedModel):
         lm_config = config.decoder_config
         self.language_model = AutoModel.from_config(lm_config)
 
-        # Acoustic tokenizer: only the decoder is needed for inference (latent -> audio).
-        # The encoder weights are loaded from the checkpoint for compatibility but
-        # deleted immediately to save VRAM.
         self.acoustic_tokenizer = AutoModel.from_config(config.acoustic_tokenizer_config).to(dtype)
+        self.semantic_tokenizer = AutoModel.from_config(config.semantic_tokenizer_config).to(dtype)
 
-        # Connector for pre-encoded voice embeddings -> LM hidden space
         self.acoustic_connector = SpeechConnector(
             config.acoustic_vae_dim, lm_config.hidden_size
+        ).to(dtype)
+        self.semantic_connector = SpeechConnector(
+            config.semantic_vae_dim, lm_config.hidden_size
         ).to(dtype)
 
         # Register scaling factors as buffers - use 1D tensors for FSDP compatibility
@@ -157,15 +157,17 @@ class KugelAudioModel(KugelAudioPreTrainedModel):
         )
 
     def strip_encoders(self):
-        """Remove encoder weights from acoustic tokenizer to free VRAM.
+        """Remove encoder weights from tokenizers to free VRAM.
 
-        Call this after loading the model to remove encoder components
-        that are not needed for inference with pre-encoded voices.
-        The acoustic decoder (for latent -> waveform) is kept.
+        Call this after loading the model when inference only needs decoding or
+        pre-encoded voices. Raw reference-audio prompting requires the encoders.
         """
         if hasattr(self.acoustic_tokenizer, "encoder"):
             del self.acoustic_tokenizer.encoder
             self.acoustic_tokenizer.encoder = None
+        if hasattr(self.semantic_tokenizer, "encoder"):
+            del self.semantic_tokenizer.encoder
+            self.semantic_tokenizer.encoder = None
 
         # Clear CUDA cache if available
         if torch.cuda.is_available():

@@ -114,6 +114,14 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
     def acoustic_connector(self):
         return self.model.acoustic_connector
 
+    @property
+    def semantic_tokenizer(self):
+        return self.model.semantic_tokenizer
+
+    @property
+    def semantic_connector(self):
+        return self.model.semantic_connector
+
     def get_input_embeddings(self):
         return self.model.get_input_embeddings()
 
@@ -145,6 +153,9 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
             acoustic_mean = voice_cache["acoustic_mean"].to(device=device, dtype=dtype)
             fix_std = voice_cache.get("acoustic_std", self.acoustic_tokenizer.fix_std)
             acoustic_features = acoustic_mean + fix_std * torch.randn_like(acoustic_mean)
+            semantic_features = voice_cache.get("semantic_mean")
+            if semantic_features is not None:
+                semantic_features = semantic_features.to(device=device, dtype=dtype)
             batch_size = acoustic_features.shape[0]
             seq_len = acoustic_features.shape[1]
             speech_masks = torch.ones(batch_size, seq_len, dtype=torch.bool, device=device)
@@ -154,6 +165,8 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
                     speech_tensors = speech_tensors.unsqueeze(1)
                 acoustic_output = self.acoustic_tokenizer.encode(speech_tensors)
                 acoustic_features, _ = self.acoustic_tokenizer.sampling(acoustic_output)
+                semantic_output = self.semantic_tokenizer.encode(speech_tensors)
+                semantic_features = semantic_output.mean
             if speech_masks is None:
                 batch_size = acoustic_features.shape[0]
                 seq_len = acoustic_features.shape[1]
@@ -161,15 +174,31 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
         else:
             raise ValueError("Either voice_cache or speech_tensors must be provided")
 
+        if semantic_features is not None:
+            acoustic_len = acoustic_features.shape[1]
+            semantic_len = semantic_features.shape[1]
+            if semantic_len < acoustic_len:
+                pad_size = acoustic_len - semantic_len
+                semantic_features = torch.nn.functional.pad(
+                    semantic_features, (0, 0, 0, pad_size), mode="constant", value=0
+                )
+            elif semantic_len > acoustic_len:
+                semantic_features = semantic_features[:, :acoustic_len, :]
+
         if not torch.isnan(self.speech_scaling_factor):
             acoustic_features = (
                 acoustic_features + self.speech_bias_factor
             ) * self.speech_scaling_factor
 
         acoustic_embed = self.acoustic_connector(acoustic_features)
-        speech_embeds = acoustic_embed[speech_masks.cpu()]
+        if semantic_features is not None:
+            semantic_embed = self.semantic_connector(semantic_features)
+            speech_embeds = (acoustic_embed + semantic_embed)[speech_masks.cpu()]
+        else:
+            speech_embeds = acoustic_embed[speech_masks.cpu()]
 
         return acoustic_features, speech_embeds
+
     def forward(
         self,
         input_ids: torch.LongTensor = None,
