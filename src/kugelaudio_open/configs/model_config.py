@@ -185,12 +185,9 @@ class KugelAudioConfig(PretrainedConfig):
 
     This configuration combines:
     - A language model backbone (Qwen2) for text understanding
-    - An acoustic tokenizer for audio decoding (latents -> waveform)
+    - An acoustic tokenizer for audio encoding/decoding
+    - A semantic tokenizer for semantic feature extraction
     - A diffusion head for speech latent prediction
-
-    Note:
-        Voice cloning is not supported. Use pre-encoded voices from the
-        voices/ directory on HuggingFace instead.
 
     Example:
         >>> from kugelaudio import KugelAudioConfig

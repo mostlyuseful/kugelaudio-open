@@ -212,6 +212,17 @@ uv run python start.py generate "Hello, this is KugelAudio!" -o hello.wav
 # With a specific pre-encoded voice
 uv run python start.py generate "Hello in a warm voice!" --voice warm -o warm.wav
 
+# With a raw reference audio prompt
+uv run python start.py generate "Hello in this speaker's voice!" --reference-audio ref.wav -o cloned.wav
+
+# Enable long-text chunking
+uv run python start.py generate \
+  "A long passage..." \
+  --max-words-per-chunk 250 \
+  --pause-mode punctuation \
+  --crossfade-ms 30 \
+  -o long.wav
+
 # Using the default model for higher quality
 uv run python start.py generate "Premium quality speech" --model kugelaudio/kugelaudio-0-open -o premium.wav
 
@@ -236,8 +247,8 @@ model = KugelAudioForConditionalGenerationInference.from_pretrained(
 ).to(device)
 model.eval()
 
-# Strip encoder weights to save VRAM (only decoders needed for inference)
-model.model.strip_encoders()
+# Optional: strip encoders only if you are NOT using raw reference-audio prompting.
+# model.model.strip_encoders()
 
 processor = KugelAudioProcessor.from_pretrained("kugelaudio/kugelaudio-0-open")
 
@@ -250,6 +261,19 @@ inputs = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in inpu
 
 with torch.no_grad():
     outputs = model.generate(**inputs, cfg_scale=3.0)
+
+# Optional: long-text chunking via high-level utility API
+# from kugelaudio_open.utils import generate_speech
+# audio = generate_speech(
+#     model,
+#     processor,
+#     "A longer passage ...",
+#     max_words_per_chunk=250,
+#     pause_mode="punctuation",
+#     crossfade_ms=30,
+# )
+# Short text automatically bypasses chunking. Chunking is heuristic and does
+# not carry hidden state or KV-cache across chunk boundaries in v1.
 
 # Save audio
 processor.save_audio(outputs.speech_outputs[0], "output.wav")
@@ -274,7 +298,7 @@ with torch.no_grad():
 processor.save_audio(outputs.speech_outputs[0], "warm_voice_output.wav")
 ```
 
-> **Note:** Voice cloning from raw audio is not supported in this open-source release. Only the pre-encoded voices listed in `voices/voices.json` are available.
+> **Note:** Raw reference-audio prompting is supported. Do not call `model.model.strip_encoders()` when using `voice_prompt`, because raw prompting requires the tokenizer encoders. Pre-encoded named voices from `voices/voices.json` also remain supported.
 
 ## Hosted API
 

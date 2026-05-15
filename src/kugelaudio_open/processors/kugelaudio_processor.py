@@ -25,12 +25,11 @@ class KugelAudioProcessor:
     Wraps a text tokenizer and audio processor into a single interface
     for preparing inputs for KugelAudio models.
 
-    Voice cloning from raw audio is not supported. Instead, pre-encoded
-    voices are loaded from .pt files referenced in a voices.json registry.
+    Supports both pre-encoded named voices and raw reference-audio prompts.
 
     Example:
         >>> processor = KugelAudioProcessor.from_pretrained("kugelaudio/kugelaudio-0-open")
-        >>> inputs = processor(text="Hello world", voice="default")
+        >>> inputs = processor(text="Hello world", voice_prompt="reference.wav")
     """
 
     def __init__(

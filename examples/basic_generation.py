@@ -2,8 +2,7 @@
 """Basic example of generating speech with KugelAudio.
 
 All generated audio is automatically watermarked for identification.
-Voice cloning is not supported. Use pre-encoded voices from the
-voices.json registry instead.
+This example uses the simplest text-to-speech path with no voice prompt.
 """
 
 import torch
@@ -30,7 +29,7 @@ def main():
     ).to(device)
     model.eval()
 
-    # Strip encoder weights to save VRAM (only decoders needed for inference)
+    # Optional: free VRAM when you are not using raw reference-audio prompting.
     model.model.strip_encoders()
 
     processor = KugelAudioProcessor.from_pretrained(model_id)
