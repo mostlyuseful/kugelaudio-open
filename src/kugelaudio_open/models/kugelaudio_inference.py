@@ -7,6 +7,7 @@ Based on the original VibeVoice model architecture.
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+from kugelaudio_open.watermark import watermark
 import torch
 import torch.nn as nn
 from tqdm import tqdm
@@ -285,6 +286,7 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
         temperature: float = 1.0,
         speech_end_penalty: float = 1.5,
         show_progress: bool = True,
+        do_watermark: bool = True,
         **kwargs,
     ) -> KugelAudioGenerationOutput:
         """Generate speech from text using voice conditioning.
@@ -602,8 +604,9 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
                 max_val = concatenated.abs().max()
                 if max_val > 1.0:
                     concatenated = concatenated * (0.95 / max_val)
-                # Apply watermark to all generated audio
-                concatenated = self._apply_watermark(concatenated, sample_rate=24000)
+                if do_watermark:
+                    # Resample to 16kHz, apply AudioSeal watermark, and resample back to original sample rate.
+                    concatenated = self._apply_watermark(concatenated, sample_rate=24000)
                 speech_outputs.append(concatenated)
             else:
                 speech_outputs.append(None)

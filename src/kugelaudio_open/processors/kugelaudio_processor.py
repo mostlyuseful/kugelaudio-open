@@ -293,17 +293,20 @@ class KugelAudioProcessor:
                 if voice_audio.ndim > 1:
                     voice_audio = voice_audio.squeeze()
 
-        # Process pre-encoded voice if available
+        # Add voice input section if either a cached voice or raw voice prompt is provided
+        num_voice_tokens = None
         if loaded_voice_cache is not None:
             acoustic_mean = loaded_voice_cache["acoustic_mean"]
-            # Number of tokens is determined by the acoustic_mean time dimension
             if acoustic_mean.dim() == 3:
                 num_voice_tokens = acoustic_mean.shape[1]
             elif acoustic_mean.dim() == 2:
                 num_voice_tokens = acoustic_mean.shape[0]
             else:
                 num_voice_tokens = 1
+        elif voice_audio is not None:
+            num_voice_tokens = math.ceil(len(voice_audio) / self.speech_compression_ratio)
 
+        if num_voice_tokens is not None:
             # Voice input section with placeholder tokens
             voice_input_tokens = self.tokenizer.encode(" Voice input:\n", add_special_tokens=False)
             full_tokens.extend(voice_input_tokens)
