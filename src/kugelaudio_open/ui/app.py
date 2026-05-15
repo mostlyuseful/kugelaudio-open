@@ -189,6 +189,9 @@ def generate_speech(
     model_choice: str = "kugelaudio-0-open",
     cfg_scale: float = 3.0,
     max_tokens: int = 2048,
+    max_words_per_chunk: int = 0,
+    pause_mode: str = "punctuation",
+    crossfade_ms: int = 30,
 ) -> Tuple[int, np.ndarray]:
     """Generate speech from text using optional voice conditioning.
 
@@ -199,6 +202,9 @@ def generate_speech(
         model_choice: Model variant to use
         cfg_scale: Classifier-free guidance scale
         max_tokens: Maximum generation tokens
+        max_words_per_chunk: Enable chunking when greater than 0
+        pause_mode: Pause insertion mode for chunked output
+        crossfade_ms: Crossfade duration between chunks in milliseconds
 
     Returns:
         Tuple of (sample_rate, audio_array)
@@ -275,33 +281,24 @@ def generate_speech(
                 f"[Voice Cloning] Final voice audio: shape={ref_audio.shape}, min={ref_audio.min():.4f}, max={ref_audio.max():.4f}, std={ref_audio.std():.4f}"
             )
             kwargs["voice_prompt"] = ref_audio
-    inputs = processor(text=text.strip(), return_tensors="pt", **kwargs)
-
-    # Move tensors to device, keep dicts as-is
-    model_inputs = {}
-    for k, v in inputs.items():
-        if isinstance(v, torch.Tensor):
-            model_inputs[k] = v.to(device)
-        else:
-            model_inputs[k] = v
 
     print(
-        f"[Generation] Using model: {model_id}, voice={voice_name}, cfg_scale={cfg_scale}, max_tokens={max_tokens}"
+        f"[Generation] Using model: {model_id}, voice={voice_name}, cfg_scale={cfg_scale}, max_tokens={max_tokens}, max_words_per_chunk={max_words_per_chunk}, pause_mode={pause_mode}, crossfade_ms={crossfade_ms}"
     )
 
-    # Generate
-    with torch.no_grad():
-        outputs = model.generate(
-            **model_inputs,
-            cfg_scale=cfg_scale,
-            max_new_tokens=max_tokens,
-        )
+    from kugelaudio_open.utils import generate_speech as generate_speech_util
 
-    if not outputs.speech_outputs or outputs.speech_outputs[0] is None:
-        raise gr.Error("Generation failed. Please try again with different settings.")
-
-    # Audio is already watermarked by the model's generate method
-    audio = outputs.speech_outputs[0]
+    audio = generate_speech_util(
+        model=model,
+        processor=processor,
+        text=text.strip(),
+        cfg_scale=cfg_scale,
+        max_new_tokens=max_tokens,
+        max_words_per_chunk=max_words_per_chunk if max_words_per_chunk > 0 else None,
+        pause_mode=pause_mode,
+        crossfade_ms=crossfade_ms,
+        **kwargs,
+    )
     print(f"[Generation] Raw output: shape={audio.shape}, dtype={audio.dtype}")
 
     # Convert to numpy (convert to float32 first since numpy doesn't support bfloat16)
@@ -431,6 +428,28 @@ def create_app() -> "gr.Blocks":
                                 label="Max Tokens",
                                 info="Maximum generation length",
                             )
+                            max_words_per_chunk = gr.Slider(
+                                minimum=0,
+                                maximum=500,
+                                value=0,
+                                step=10,
+                                label="Max Words Per Chunk",
+                                info="Set above 0 to enable long-text chunking",
+                            )
+                            pause_mode = gr.Dropdown(
+                                choices=["none", "punctuation", "speaker-aware"],
+                                value="punctuation",
+                                label="Pause Mode",
+                                info="Pause insertion mode for stitched chunked output",
+                            )
+                            crossfade_ms = gr.Slider(
+                                minimum=0,
+                                maximum=100,
+                                value=30,
+                                step=5,
+                                label="Crossfade (ms)",
+                                info="Crossfade duration between chunks",
+                            )
 
                         generate_btn = gr.Button("🎤 Generate Speech", variant="primary", size="lg")
 
@@ -458,7 +477,17 @@ def create_app() -> "gr.Blocks":
 
                 generate_btn.click(
                     fn=generate_speech,
-                    inputs=[text_input, voice_dropdown, reference_audio, model_choice, cfg_scale, max_tokens],
+                    inputs=[
+                        text_input,
+                        voice_dropdown,
+                        reference_audio,
+                        model_choice,
+                        cfg_scale,
+                        max_tokens,
+                        max_words_per_chunk,
+                        pause_mode,
+                        crossfade_ms,
+                    ],
                     outputs=[output_audio],
                 )
 
