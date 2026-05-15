@@ -152,8 +152,15 @@ def load_models(model_id: str = "kugelaudio/kugelaudio-0-open"):
                 torch_dtype=dtype,
             ).to(device)
         _model.eval()
+        has_semantic_path = (
+            getattr(_model.model, "semantic_tokenizer", None) is not None
+            and getattr(_model.model, "semantic_connector", None) is not None
+        )
         _current_model_id = model_id
         print(f"Model {model_id} loaded!")
+        print(
+            f"[Model] Semantic voice-conditioning path: {'available' if has_semantic_path else 'not available'}"
+        )
 
     if _processor is None or _current_processor_model_id != model_id:
         _processor = KugelAudioProcessor.from_pretrained(model_id)
@@ -213,13 +220,60 @@ def generate_speech(
     if reference_audio is not None:
         ref_sr, ref_audio = reference_audio
         if ref_audio is not None:
-            ref_audio = ref_audio.astype(np.float32)
+            print(
+                f"[Voice Cloning] Input audio: sr={ref_sr}, shape={ref_audio.shape}, dtype={ref_audio.dtype}"
+            )
+
+            # Convert to float32 and normalize based on dtype
+            if ref_audio.dtype == np.int16:
+                ref_audio = ref_audio.astype(np.float32) / 32768.0
+            elif ref_audio.dtype == np.int32:
+                ref_audio = ref_audio.astype(np.float32) / 2147483648.0
+            elif ref_audio.dtype == np.float64:
+                ref_audio = ref_audio.astype(np.float32)
+            elif ref_audio.dtype != np.float32:
+                ref_audio = ref_audio.astype(np.float32)
+
+            # Ensure mono BEFORE resampling (important for stereo files)
             if ref_audio.ndim > 1:
-                ref_audio = ref_audio.mean(axis=-1)
+                if ref_audio.shape[0] == 2:  # [2, samples] format (channels first)
+                    ref_audio = ref_audio.mean(axis=0)
+                elif ref_audio.shape[-1] == 2:  # [samples, 2] format (channels last)
+                    ref_audio = ref_audio.mean(axis=-1)
+                elif ref_audio.shape[0] < ref_audio.shape[-1]:  # Likely [channels, samples]
+                    ref_audio = ref_audio.mean(axis=0)
+                else:  # Likely [samples, channels]
+                    ref_audio = ref_audio.mean(axis=-1)
+
+            # Ensure 1D
+            ref_audio = ref_audio.squeeze()
+
+            print(
+                f"[Voice Cloning] After mono conversion: shape={ref_audio.shape}, dtype={ref_audio.dtype}"
+            )
+
+            # Resample to 24kHz if needed - this is critical for voice cloning
             if ref_sr != 24000:
                 import librosa
 
+                print(
+                    f"[Voice Cloning] Resampling from {ref_sr}Hz to 24000Hz (ratio: {ref_sr/24000:.4f})"
+                )
                 ref_audio = librosa.resample(ref_audio, orig_sr=ref_sr, target_sr=24000)
+                print(
+                    f"[Voice Cloning] After resampling: shape={ref_audio.shape}, duration={len(ref_audio)/24000:.2f}s"
+                )
+            else:
+                print("[Voice Cloning] No resampling needed, already at 24kHz")
+
+            # Normalize audio to reasonable range
+            max_val = np.abs(ref_audio).max()
+            if max_val > 0:
+                ref_audio = ref_audio / max_val * 0.95
+
+            print(
+                f"[Voice Cloning] Final voice audio: shape={ref_audio.shape}, min={ref_audio.min():.4f}, max={ref_audio.max():.4f}, std={ref_audio.std():.4f}"
+            )
             kwargs["voice_prompt"] = ref_audio
     inputs = processor(text=text.strip(), return_tensors="pt", **kwargs)
 
