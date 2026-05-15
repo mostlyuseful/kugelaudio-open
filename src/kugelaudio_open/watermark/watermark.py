@@ -199,26 +199,27 @@ class AudioWatermark:
         # Resample watermark back to original sample rate
         if sample_rate != self.AUDIOSEAL_SAMPLE_RATE:
             watermark = self._resample(watermark_16k, self.AUDIOSEAL_SAMPLE_RATE, sample_rate)
-            # Ensure same length as original
-            if watermark.shape[-1] != audio.shape[-1]:
-                if watermark.shape[-1] > audio.shape[-1]:
-                    watermark = watermark[..., :audio.shape[-1]]
-                else:
-                    watermark = torch.nn.functional.pad(
-                        watermark, (0, audio.shape[-1] - watermark.shape[-1])
-                    )
-            # Re-fetch original audio at original sample rate
+            # Re-fetch original audio at original sample rate because the embedded
+            # watermark is defined in that domain.
             audio = self._resample(audio_16k, self.AUDIOSEAL_SAMPLE_RATE, sample_rate)
-            if audio.shape[-1] != original_shape[-1] if len(original_shape) > 0 else True:
-                # Adjust to match original length
-                target_len = original_shape[-1] if original_shape else watermark.shape[-1]
-                if audio.shape[-1] > target_len:
-                    audio = audio[..., :target_len]
-                    watermark = watermark[..., :target_len]
         else:
             watermark = watermark_16k
-        
-        # Add watermark to audio
+
+        # Resampling can drift by ±1 sample, so force both tensors to the same
+        # target length before combining them.
+        target_len = original_shape[-1] if len(original_shape) > 0 else min(audio.shape[-1], watermark.shape[-1])
+        if audio.shape[-1] != target_len:
+            if audio.shape[-1] > target_len:
+                audio = audio[..., :target_len]
+            else:
+                audio = torch.nn.functional.pad(audio, (0, target_len - audio.shape[-1]))
+        if watermark.shape[-1] != target_len:
+            if watermark.shape[-1] > target_len:
+                watermark = watermark[..., :target_len]
+            else:
+                watermark = torch.nn.functional.pad(watermark, (0, target_len - watermark.shape[-1]))
+
+        # Add watermark
         watermarked = audio + watermark
         
         # Prevent clipping
