@@ -51,6 +51,24 @@ Examples:
     )
     gen_parser.add_argument("--model", default="kugelaudio/kugelaudio-0-open", help="Model ID")
     gen_parser.add_argument("--cfg-scale", type=float, default=3.0, help="Guidance scale")
+    gen_parser.add_argument(
+        "--max-words-per-chunk",
+        type=int,
+        default=0,
+        help="Enable long-text chunking when greater than 0",
+    )
+    gen_parser.add_argument(
+        "--pause-mode",
+        choices=["none", "punctuation", "speaker-aware"],
+        default="punctuation",
+        help="Pause insertion mode for stitched chunked output",
+    )
+    gen_parser.add_argument(
+        "--crossfade-ms",
+        type=int,
+        default=30,
+        help="Crossfade duration between chunks in milliseconds",
+    )
 
     # Verify command
     verify_parser = subparsers.add_parser("verify", help="Check watermark in audio")
@@ -70,39 +88,26 @@ Examples:
     elif args.command == "generate":
         import torch
 
-        from kugelaudio_open.models import KugelAudioForConditionalGenerationInference
-        from kugelaudio_open.processors import KugelAudioProcessor
+        from kugelaudio_open.utils import generate_speech, load_model_and_processor
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        dtype = torch.bfloat16 if device == "cuda" else torch.float32
+        model, processor = load_model_and_processor(args.model)
 
-        print(f"Loading model {args.model}...")
-        model = KugelAudioForConditionalGenerationInference.from_pretrained(
-            args.model, torch_dtype=dtype
-        ).to(device)
-        model.eval()
+        if args.crossfade_ms < 0:
+            raise ValueError("--crossfade-ms must be >= 0")
 
-        processor = KugelAudioProcessor.from_pretrained(args.model)
-
-        # Process inputs with optional pre-encoded voice and/or raw reference audio
-        inputs = processor(
+        print("Generating speech...")
+        audio = generate_speech(
+            model=model,
+            processor=processor,
             text=args.text,
             voice=args.voice,
             voice_prompt=args.reference_audio,
-            return_tensors="pt",
+            cfg_scale=args.cfg_scale,
+            max_new_tokens=4096,
+            max_words_per_chunk=args.max_words_per_chunk if args.max_words_per_chunk > 0 else None,
+            pause_mode=args.pause_mode,
+            crossfade_ms=args.crossfade_ms,
         )
-        inputs = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
-
-        print("Generating speech...")
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                cfg_scale=args.cfg_scale,
-                max_new_tokens=4096,
-            )
-
-        # Audio is already watermarked by the model's generate method
-        audio = outputs.speech_outputs[0]
 
         # Save
         processor.save_audio(audio, args.output)
