@@ -1,0 +1,22 @@
+[
+  {
+    "id": "en_short_hello",
+    "language": "en",
+    "text": "Hello there. This is a short English evaluation sample."
+  },
+  {
+    "id": "de_short_narration",
+    "language": "de",
+    "text": "Guten Tag. Dies ist ein kurzer deutscher Auswertungssatz."
+  },
+  {
+    "id": "fr_medium_narration",
+    "language": "fr",
+    "text": "Bonjour. Ceci est un extrait français un peu plus long pour évaluer la fidélité audio et les consonnes finales."
+  },
+  {
+    "id": "sr_short_ambiguous",
+    "language": "sr",
+    "text": "Dobar dan. Ovo je kratak srpski primer za proveru jezičkog usmeravanja."
+  }
+]
