@@ -4,6 +4,7 @@ KugelAudio generates natural, expressive speech from text with support for:
 - pre-encoded named voices from `voices/voices.json`
 - raw reference-audio voice prompting
 - optional long-text chunking in high-level generation utilities
+- preserved end-of-speech decoder tails in the shared inference path
 
 Note:
     Raw voice prompting requires tokenizer encoders to remain loaded.

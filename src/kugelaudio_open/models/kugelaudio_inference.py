@@ -29,10 +29,7 @@ from ..configs import KugelAudioConfig
 from ..schedule.dpm_solver import DPMSolverMultistepScheduler
 from .diffusion_head import KugelAudioDiffusionHead
 from .kugelaudio_model import KugelAudioModel, KugelAudioPreTrainedModel
-from .tokenizer import (
-    KugelAudioTokenizerEncoderOutput,
-    KugelAudioTokenizerStreamingCache,
-)
+from .tokenizer import KugelAudioTokenizerEncoderOutput
 
 logger = logging.get_logger(__name__)
 
@@ -366,9 +363,6 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
         speech_diffusion_id = getattr(self.config, "speech_diffusion_id", None) or 151654
         eos_token_id = getattr(self.config.decoder_config, "eos_token_id", None) or 151643
 
-        # Initialize streaming cache for acoustic tokenizer only
-        acoustic_cache_streaming = KugelAudioTokenizerStreamingCache()
-
         # Initialize sequences and attention masks
         current_ids = text_ids
         attention_mask = torch.ones_like(current_ids)
@@ -377,8 +371,10 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
         negative_ids = torch.full((batch_size, 1), speech_start_id, dtype=torch.long, device=device)
         negative_attention_mask = torch.ones_like(negative_ids)
 
-        # Storage for generated audio and tracking
-        audio_chunks = [[] for _ in range(batch_size)]
+        # Storage for generated speech latents and tracking. We decode the full
+        # latent sequence after generation so the acoustic decoder can emit its
+        # final tail instead of cutting off the last phones.
+        latent_chunks = [[] for _ in range(batch_size)]
         finished = torch.zeros(batch_size, dtype=torch.bool, device=device)
         correct_cnt = torch.zeros(batch_size, dtype=torch.long, device=device)
 
@@ -478,12 +474,10 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
             if eos_mask.any():
                 finished = finished | eos_mask
 
-            # Check for speech_end tokens - mark as finished and clear caches
+            # Check for speech_end tokens - mark as finished
             speech_end_mask = (next_tokens == speech_end_id) & ~finished
             if speech_end_mask.any():
                 finished = finished | speech_end_mask
-                speech_end_indices = speech_end_mask.nonzero(as_tuple=False).squeeze(-1)
-                acoustic_cache_streaming.set_to_zero(speech_end_indices)
 
             # Handle speech_start tokens - refresh negative model KV cache
             speech_start_mask = (next_tokens == speech_start_id) & ~finished
@@ -592,18 +586,11 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
                     speech_latents / self.speech_scaling_factor - self.speech_bias_factor
                 )
 
-                # Decode through acoustic tokenizer with streaming cache
-                audio = self.acoustic_tokenizer.decode(
-                    scaled_latent.unsqueeze(1).permute(0, 2, 1),
-                    cache=acoustic_cache_streaming,
-                    sample_indices=diffusion_indices,
-                    use_cache=True,
-                )
-
-                # Store audio chunks
+                # Store latent chunks for final non-streaming decode. This avoids
+                # truncating the decoder tail at the end of generation.
                 for i, idx in enumerate(diffusion_indices.tolist()):
                     if not finished[idx]:
-                        audio_chunks[idx].append(audio[i].cpu())
+                        latent_chunks[idx].append(scaled_latent[i].detach().cpu())
 
                 # Compute embeddings for next step (acoustic only, no semantic re-encoding)
                 acoustic_embed = self.acoustic_connector(speech_latents.unsqueeze(1))
@@ -626,11 +613,12 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
             )
             negative_ids = torch.cat([negative_ids, next_tokens.unsqueeze(-1)], dim=-1)
 
-        # Concatenate audio chunks with normalization
+        # Decode final latent sequences with the non-streaming decoder so the
+        # last decoder tail is preserved.
         speech_outputs = []
-        for chunks in audio_chunks:
+        for chunks in latent_chunks:
             if chunks:
-                concatenated = torch.cat(chunks, dim=-1).squeeze()
+                concatenated = self._decode_speech_latent_sequence(chunks)
                 # Normalize audio to prevent clipping
                 max_val = concatenated.abs().max()
                 if max_val > 1.0:
@@ -646,6 +634,20 @@ class KugelAudioForConditionalGenerationInference(KugelAudioPreTrainedModel, Gen
             sequences=current_ids,
             speech_outputs=speech_outputs,
         )
+
+    def _decode_speech_latent_sequence(self, latent_chunks: List[torch.Tensor]) -> torch.Tensor:
+        """Decode a full speech latent sequence in one non-streaming pass.
+
+        The generation loop produces one acoustic latent per diffusion token. We
+        intentionally decode the complete latent sequence at the end rather than
+        concatenating streaming decoder fragments so the decoder can emit its
+        final tail without cutting off the last phonemes.
+        """
+        device = next(self.parameters()).device
+        dtype = next(self.parameters()).dtype
+        latents = torch.stack(latent_chunks, dim=0).unsqueeze(0).to(device=device, dtype=dtype)
+        audio = self.acoustic_tokenizer.decode(latents, use_cache=False)
+        return audio.squeeze().detach().cpu()
 
     @staticmethod
     def load_voice(voice_path: str) -> dict:

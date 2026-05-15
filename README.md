@@ -138,6 +138,7 @@ Get started with KugelAudio quickly using our documentation:
 - **High-Quality TTS**: State-of-the-art speech synthesis using AR + Diffusion
 - 🎭 **Pre-encoded Voices**: Select from a set of pre-encoded speaker voices
 - **Audio Watermarking**: All generated audio is watermarked using [Facebook's AudioSeal](https://huggingface.co/facebook/audioseal)
+- 🔚 **Preserved end-of-speech tails**: final decoder tails are now preserved to reduce abrupt cut-offs at the end of generated utterances
 - 🎭 **Emotional Range**: Supports various speaking styles including shouting, singing, and expressive speech
 - **Web Interface**: Easy-to-use Gradio UI for non-technical users
 - **HuggingFace Integration**: Seamless loading from HuggingFace Hub
@@ -397,6 +398,10 @@ outputs = model.generate(
     max_new_tokens=4096,            # Maximum generation length
 )
 ```
+
+### End-of-speech tail handling
+
+Generated audio now decodes the final acoustic latent sequence in one non-streaming pass before saving. This preserves the decoder tail at the end of an utterance and reduces abrupt cut-offs of the last phones/syllables that could previously occur in some languages and cloned-voice outputs.
 
 ## Responsible Use
 
