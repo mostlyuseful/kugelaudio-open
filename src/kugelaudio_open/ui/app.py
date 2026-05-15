@@ -190,6 +190,7 @@ def generate_speech(
     cfg_scale: float = 3.0,
     max_tokens: int = 2048,
     max_words_per_chunk: int = 0,
+    overlap_sentences: int = 0,
     pause_mode: str = "punctuation",
     crossfade_ms: int = 30,
 ) -> Tuple[int, np.ndarray]:
@@ -203,6 +204,8 @@ def generate_speech(
         cfg_scale: Classifier-free guidance scale
         max_tokens: Maximum generation tokens
         max_words_per_chunk: Enable chunking when greater than 0
+        overlap_sentences: Number of trailing completed sentences to reuse as
+            context between chunks
         pause_mode: Pause insertion mode for chunked output
         crossfade_ms: Crossfade duration between chunks in milliseconds
 
@@ -283,7 +286,7 @@ def generate_speech(
             kwargs["voice_prompt"] = ref_audio
 
     print(
-        f"[Generation] Using model: {model_id}, voice={voice_name}, cfg_scale={cfg_scale}, max_tokens={max_tokens}, max_words_per_chunk={max_words_per_chunk}, pause_mode={pause_mode}, crossfade_ms={crossfade_ms}"
+        f"[Generation] Using model: {model_id}, voice={voice_name}, cfg_scale={cfg_scale}, max_tokens={max_tokens}, max_words_per_chunk={max_words_per_chunk}, overlap_sentences={overlap_sentences}, pause_mode={pause_mode}, crossfade_ms={crossfade_ms}"
     )
 
     from kugelaudio_open.utils import generate_speech as generate_speech_util
@@ -295,6 +298,7 @@ def generate_speech(
         cfg_scale=cfg_scale,
         max_new_tokens=max_tokens,
         max_words_per_chunk=max_words_per_chunk if max_words_per_chunk > 0 else None,
+        overlap_sentences=overlap_sentences,
         pause_mode=pause_mode,
         crossfade_ms=crossfade_ms,
         **kwargs,
@@ -436,6 +440,14 @@ def create_app() -> "gr.Blocks":
                                 label="Max Words Per Chunk",
                                 info="Set above 0 to enable long-text chunking",
                             )
+                            overlap_sentences = gr.Slider(
+                                minimum=0,
+                                maximum=3,
+                                value=0,
+                                step=1,
+                                label="Overlap Sentences",
+                                info="Reuse trailing completed sentences as prompt context between chunks",
+                            )
                             pause_mode = gr.Dropdown(
                                 choices=["none", "punctuation", "speaker-aware"],
                                 value="punctuation",
@@ -485,6 +497,7 @@ def create_app() -> "gr.Blocks":
                         cfg_scale,
                         max_tokens,
                         max_words_per_chunk,
+                        overlap_sentences,
                         pause_mode,
                         crossfade_ms,
                     ],

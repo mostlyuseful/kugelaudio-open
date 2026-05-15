@@ -72,6 +72,7 @@ def generate_speech(
     max_new_tokens: int = 4096,
     device: Optional[Union[str, torch.device]] = None,
     max_words_per_chunk: Optional[int] = None,
+    overlap_sentences: int = 0,
     pause_mode: str = "punctuation",
     crossfade_ms: int = 30,
 ) -> torch.Tensor:
@@ -92,6 +93,8 @@ def generate_speech(
         max_new_tokens: Maximum number of tokens to generate per chunk
         device: Device for generation
         max_words_per_chunk: Enable chunking when set to a positive integer
+        overlap_sentences: Number of trailing completed sentences from the
+            previous chunk to prepend as prompt context for the next chunk
         pause_mode: Pause insertion strategy for stitched multi-chunk output
         crossfade_ms: Crossfade duration between chunks in milliseconds
 
@@ -113,7 +116,11 @@ def generate_speech(
             device=device,
         )
 
-    plan = split_text_into_chunks(text, max_words_per_chunk)
+    plan = split_text_into_chunks(
+        text,
+        max_words_per_chunk,
+        overlap_sentences=overlap_sentences,
+    )
     if len(plan.chunks) == 1:
         print("[Chunking] Chunking enabled but skipped: single chunk")
         return _generate_single_pass(
@@ -129,7 +136,7 @@ def generate_speech(
 
     print(
         f"[Chunking] Enabled: {len(plan.chunks)} chunks, boundary_types={plan.boundary_types}, "
-        f"pause_mode={pause_mode}, crossfade_ms={crossfade_ms}"
+        f"overlap_sentences={overlap_sentences}, pause_mode={pause_mode}, crossfade_ms={crossfade_ms}"
     )
 
     chunk_outputs = []
@@ -151,7 +158,7 @@ def generate_speech(
 
     stitched = stitch_audio_chunks(
         chunk_outputs,
-        chunk_texts=plan.chunks,
+        chunk_texts=plan.new_texts,
         pause_mode=pause_mode,
         crossfade_ms=crossfade_ms,
         sample_rate=24000,

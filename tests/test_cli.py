@@ -23,6 +23,8 @@ class CLITests(unittest.TestCase):
         "hello world",
         "--max-words-per-chunk",
         "123",
+        "--overlap-sentences",
+        "2",
         "--pause-mode",
         "speaker-aware",
         "--crossfade-ms",
@@ -47,6 +49,7 @@ class CLITests(unittest.TestCase):
         self.assertEqual(kwargs["voice"], "default")
         self.assertEqual(kwargs["voice_prompt"], "ref.wav")
         self.assertEqual(kwargs["max_words_per_chunk"], 123)
+        self.assertEqual(kwargs["overlap_sentences"], 2)
         self.assertEqual(kwargs["pause_mode"], "speaker-aware")
         self.assertEqual(kwargs["crossfade_ms"], 42)
         self.assertEqual(processor.saved, [("audio", "out.wav")])
@@ -79,6 +82,19 @@ class CLITests(unittest.TestCase):
         processor = _FakeProcessor()
         with patch("kugelaudio_open.utils.load_model_and_processor", return_value=(object(), processor)):
             with self.assertRaisesRegex(ValueError, "crossfade-ms"):
+                cli.main()
+
+    @patch("kugelaudio_open.cli.sys.argv", [
+        "kugelaudio",
+        "generate",
+        "hello world",
+        "--overlap-sentences",
+        "-1",
+    ])
+    def test_generate_rejects_negative_overlap_sentences(self):
+        processor = _FakeProcessor()
+        with patch("kugelaudio_open.utils.load_model_and_processor", return_value=(object(), processor)):
+            with self.assertRaisesRegex(ValueError, "overlap-sentences"):
                 cli.main()
 
 

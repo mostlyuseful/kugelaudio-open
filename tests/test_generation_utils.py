@@ -1,6 +1,7 @@
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import torch
 
@@ -102,6 +103,38 @@ class GenerateSpeechTests(unittest.TestCase):
         self.assertEqual(model.watermark_calls[0]["sample_rate"], 24000)
         self.assertTrue(torch.equal(model.watermark_calls[0]["audio"], torch.tensor([1.0, 1.0, 2.0, 2.0])))
         self.assertTrue(torch.equal(audio, torch.tensor([11.0, 11.0, 12.0, 12.0])))
+
+    def test_chunked_generation_uses_overlap_prompt_context_but_stitches_new_text_boundaries(self):
+        model = _FakeModel()
+        processor = _FakeProcessor()
+
+        with patch(
+            "kugelaudio_open.utils.generation.stitch_audio_chunks",
+            side_effect=lambda audios, chunk_texts, **kwargs: torch.cat(audios),
+        ) as stitch:
+            audio = generate_speech(
+                model,
+                processor,
+                "One two. Three four. Five six.",
+                max_words_per_chunk=2,
+                overlap_sentences=1,
+                pause_mode="none",
+                crossfade_ms=0,
+            )
+
+        self.assertEqual(
+            [call["text"] for call in processor.calls],
+            ["One two.", "One two. Three four.", "Three four. Five six."],
+        )
+        self.assertEqual(
+            stitch.call_args.kwargs["chunk_texts"],
+            ["One two.", "Three four.", "Five six."],
+        )
+        self.assertEqual(stitch.call_args.kwargs["pause_mode"], "none")
+        self.assertEqual(stitch.call_args.kwargs["crossfade_ms"], 0)
+        self.assertEqual(len(model.generate_calls), 3)
+        self.assertEqual(len(model.watermark_calls), 1)
+        self.assertTrue(torch.equal(audio, torch.tensor([11.0, 11.0, 12.0, 12.0, 13.0, 13.0])))
 
 
 if __name__ == "__main__":

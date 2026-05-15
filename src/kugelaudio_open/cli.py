@@ -58,6 +58,12 @@ Examples:
         help="Enable long-text chunking when greater than 0",
     )
     gen_parser.add_argument(
+        "--overlap-sentences",
+        type=int,
+        default=0,
+        help="Number of trailing completed sentences to reuse as context between chunks",
+    )
+    gen_parser.add_argument(
         "--pause-mode",
         choices=["none", "punctuation", "speaker-aware"],
         default="punctuation",
@@ -94,6 +100,8 @@ Examples:
 
         if args.crossfade_ms < 0:
             raise ValueError("--crossfade-ms must be >= 0")
+        if args.overlap_sentences < 0:
+            raise ValueError("--overlap-sentences must be >= 0")
 
         print("Generating speech...")
         audio = generate_speech(
@@ -105,6 +113,7 @@ Examples:
             cfg_scale=args.cfg_scale,
             max_new_tokens=4096,
             max_words_per_chunk=args.max_words_per_chunk if args.max_words_per_chunk > 0 else None,
+            overlap_sentences=args.overlap_sentences,
             pause_mode=args.pause_mode,
             crossfade_ms=args.crossfade_ms,
         )
