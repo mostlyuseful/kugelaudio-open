@@ -21,6 +21,8 @@ class CLITests(unittest.TestCase):
         "kugelaudio",
         "generate",
         "hello world",
+        "--language",
+        "de",
         "--max-words-per-chunk",
         "123",
         "--overlap-sentences",
@@ -48,6 +50,7 @@ class CLITests(unittest.TestCase):
 
         kwargs = gen.call_args.kwargs
         self.assertEqual(kwargs["text"], "hello world")
+        self.assertEqual(kwargs["language"], "de")
         self.assertEqual(kwargs["voice"], "default")
         self.assertEqual(kwargs["voice_prompt"], "ref.wav")
         self.assertEqual(kwargs["max_words_per_chunk"], 123)

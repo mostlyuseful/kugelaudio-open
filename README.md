@@ -137,6 +137,7 @@ Get started with KugelAudio quickly using our documentation:
 - 🌍 **European Language Focus**: Trained specifically for 24 major European languages
 - **High-Quality TTS**: State-of-the-art speech synthesis using AR + Diffusion
 - 🎭 **Pre-encoded Voices**: Select from a set of pre-encoded speaker voices
+- 🌐 **Optional language hints**: Force a target language for short or ambiguous text across CLI, Python API, and web UI
 - **Audio Watermarking**: All generated audio is watermarked using [Facebook's AudioSeal](https://huggingface.co/facebook/audioseal)
 - 🔚 **Preserved end-of-speech tails**: final decoder tails are now preserved to reduce abrupt cut-offs at the end of generated utterances
 - 🎭 **Emotional Range**: Supports various speaking styles including shouting, singing, and expressive speech
@@ -216,6 +217,9 @@ uv run python start.py generate "Hello in a warm voice!" --voice warm -o warm.wa
 # With a raw reference audio prompt
 uv run python start.py generate "Hello in this speaker's voice!" --reference-audio ref.wav -o cloned.wav
 
+# Force a language hint for short or ambiguous text
+uv run python start.py generate "Dobar dan" --language sr -o serbian.wav
+
 # Enable long-text chunking
 uv run python start.py generate \
   "A long passage..." \
@@ -257,7 +261,7 @@ processor = KugelAudioProcessor.from_pretrained("kugelaudio/kugelaudio-0-open")
 print(processor.get_available_voices())  # ["default", "warm", "clear"]
 
 # Generate speech (watermark is automatically applied)
-inputs = processor(text="Hello world!", voice="default", return_tensors="pt")
+inputs = processor(text="Hello world!", voice="default", language="en", return_tensors="pt")
 inputs = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
 
 with torch.no_grad():
@@ -269,6 +273,7 @@ with torch.no_grad():
 #     model,
 #     processor,
 #     "A longer passage ...",
+#     language="de",
 #     max_words_per_chunk=250,
 #     pause_mode="punctuation",
 #     crossfade_ms=30,

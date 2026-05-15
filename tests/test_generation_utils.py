@@ -19,12 +19,13 @@ class _FakeProcessor:
     def __init__(self):
         self.calls = []
 
-    def __call__(self, text, voice=None, voice_prompt=None, return_tensors=None):
+    def __call__(self, text, voice=None, voice_prompt=None, language=None, return_tensors=None):
         self.calls.append(
             {
                 "text": text,
                 "voice": voice,
                 "voice_prompt": voice_prompt,
+                "language": language,
                 "return_tensors": return_tensors,
             }
         )
@@ -58,10 +59,17 @@ class GenerateSpeechTests(unittest.TestCase):
         model = _FakeModel()
         processor = _FakeProcessor()
 
-        audio = generate_speech(model, processor, "Hello world.", max_words_per_chunk=None)
+        audio = generate_speech(
+            model,
+            processor,
+            "Hello world.",
+            language="de",
+            max_words_per_chunk=None,
+        )
 
         self.assertTrue(torch.equal(audio, torch.tensor([1.0, 1.0])))
         self.assertEqual(len(processor.calls), 1)
+        self.assertEqual(processor.calls[0]["language"], "de")
         self.assertEqual(len(model.generate_calls), 1)
         self.assertEqual(model.watermark_calls, [])
         self.assertNotIn("do_watermark", model.generate_calls[0])
@@ -87,6 +95,7 @@ class GenerateSpeechTests(unittest.TestCase):
             "One two. Three four.",
             voice="default",
             voice_prompt="ref.wav",
+            language="fr",
             max_words_per_chunk=2,
             pause_mode="none",
             crossfade_ms=0,
@@ -96,6 +105,7 @@ class GenerateSpeechTests(unittest.TestCase):
         self.assertEqual([call["text"] for call in processor.calls], ["One two.", "Three four."])
         self.assertTrue(all(call["voice"] == "default" for call in processor.calls))
         self.assertTrue(all(call["voice_prompt"] == "ref.wav" for call in processor.calls))
+        self.assertTrue(all(call["language"] == "fr" for call in processor.calls))
 
         self.assertEqual(len(model.generate_calls), 2)
         self.assertTrue(all(call.get("do_watermark") is False for call in model.generate_calls))
@@ -118,6 +128,7 @@ class GenerateSpeechTests(unittest.TestCase):
                 "One two. Three four. Five six.",
                 max_words_per_chunk=2,
                 overlap_sentences=1,
+                language="es",
                 chunking_strategy="heuristic",
                 pause_mode="none",
                 crossfade_ms=0,
@@ -127,6 +138,7 @@ class GenerateSpeechTests(unittest.TestCase):
             [call["text"] for call in processor.calls],
             ["One two.", "One two. Three four.", "Three four. Five six."],
         )
+        self.assertTrue(all(call["language"] == "es" for call in processor.calls))
         self.assertEqual(
             stitch.call_args.kwargs["chunk_texts"],
             ["One two.", "Three four.", "Five six."],

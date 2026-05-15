@@ -14,6 +14,7 @@ from transformers.tokenization_utils_base import (
 )
 from transformers.utils import TensorType, cached_file, logging
 
+from kugelaudio_open.languages import build_language_instruction
 from kugelaudio_open.processors.audio_processor import AudioNormalizer, AudioProcessor
 
 logger = logging.get_logger(__name__)
@@ -224,6 +225,7 @@ class KugelAudioProcessor:
         voice: Optional[str] = None,
         voice_cache: Optional[dict] = None,
         voice_prompt: Optional[Union[np.ndarray, torch.Tensor, str]] = None,
+        language: Optional[str] = None,
         padding: Union[bool, str, PaddingStrategy] = True,
         truncation: Union[bool, str, TruncationStrategy] = False,
         max_length: Optional[int] = None,
@@ -240,6 +242,7 @@ class KugelAudioProcessor:
             voice: Name of a pre-encoded voice (from voices.json registry)
             voice_cache: Pre-encoded voice features dict (alternative to voice name)
             voice_prompt: Raw audio prompt (numpy, torch tensor, or file path)
+            language: Optional ISO 639-1 language code to bias generation
             padding: Padding strategy
             truncation: Truncation strategy
             max_length: Maximum sequence length
@@ -262,7 +265,10 @@ class KugelAudioProcessor:
             formatted_text = f"Speaker 0: {formatted_text}"
 
         # Build the full prompt template matching the training format
-        system_prompt = " Transform the text provided by various speakers into speech output, utilizing the distinct voice of each respective speaker.\n"
+        system_prompt = (
+            " Transform the text provided by various speakers into speech output, utilizing the distinct voice of each respective speaker."
+            f"{build_language_instruction(language)}\n"
+        )
 
         # Start building tokens and speech_input_mask
         full_tokens = []

@@ -68,6 +68,7 @@ def generate_speech(
     text: str,
     voice: Optional[str] = None,
     voice_prompt: Optional[Union[str, torch.Tensor]] = None,
+    language: Optional[str] = None,
     cfg_scale: float = 3.0,
     max_new_tokens: int = 4096,
     device: Optional[Union[str, torch.device]] = None,
@@ -90,6 +91,7 @@ def generate_speech(
         text: Text to synthesize
         voice: Name of a pre-encoded voice (from voices.json registry)
         voice_prompt: Raw voice prompt audio tensor or path
+        language: Optional ISO 639-1 language code to bias generation
         cfg_scale: Classifier-free guidance scale
         max_new_tokens: Maximum number of tokens to generate per chunk
         device: Device for generation
@@ -113,6 +115,7 @@ def generate_speech(
             text=text,
             voice=voice,
             voice_prompt=voice_prompt,
+            language=language,
             cfg_scale=cfg_scale,
             max_new_tokens=max_new_tokens,
             device=device,
@@ -132,6 +135,7 @@ def generate_speech(
             text=text,
             voice=voice,
             voice_prompt=voice_prompt,
+            language=language,
             cfg_scale=cfg_scale,
             max_new_tokens=max_new_tokens,
             device=device,
@@ -146,7 +150,13 @@ def generate_speech(
     chunk_outputs = []
     for idx, chunk in enumerate(plan.chunks, start=1):
         print(f"[Chunking] Generating chunk {idx}/{len(plan.chunks)}")
-        inputs = processor(text=chunk, voice=voice, voice_prompt=voice_prompt, return_tensors="pt")
+        inputs = processor(
+            text=chunk,
+            voice=voice,
+            voice_prompt=voice_prompt,
+            language=language,
+            return_tensors="pt",
+        )
         inputs = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
         with torch.no_grad():
             outputs = model.generate(
@@ -178,11 +188,18 @@ def _generate_single_pass(
     text: str,
     voice: Optional[str],
     voice_prompt: Optional[Union[str, torch.Tensor]],
+    language: Optional[str],
     cfg_scale: float,
     max_new_tokens: int,
     device: Union[str, torch.device],
 ) -> torch.Tensor:
-    inputs = processor(text=text, voice=voice, voice_prompt=voice_prompt, return_tensors="pt")
+    inputs = processor(
+        text=text,
+        voice=voice,
+        voice_prompt=voice_prompt,
+        language=language,
+        return_tensors="pt",
+    )
     inputs = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in inputs.items()}
 
     with torch.no_grad():

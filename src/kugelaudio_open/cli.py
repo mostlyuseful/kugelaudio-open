@@ -4,6 +4,8 @@
 import argparse
 import sys
 
+from kugelaudio_open.languages import get_supported_language_codes
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -25,6 +27,9 @@ Examples:
 
   # Generate with reference audio prompt
   kugelaudio generate "Hello world!" --reference-audio ref.wav -o output.wav
+
+  # Force a language hint for short or ambiguous text
+  kugelaudio generate "Dobar dan" --language sr -o output.wav
 
   # Generate with syntax-aware chunk planning
   kugelaudio generate "Dr. Smith arrived. Then left." --max-words-per-chunk 20 --chunking-strategy syntax-aware -o output.wav
@@ -53,6 +58,12 @@ Examples:
         "-r", "--reference-audio", help="Path to reference audio prompt for voice cloning"
     )
     gen_parser.add_argument("--model", default="kugelaudio/kugelaudio-0-open", help="Model ID")
+    gen_parser.add_argument(
+        "-l",
+        "--language",
+        choices=get_supported_language_codes(),
+        help="Optional ISO 639-1 language code hint (for example: en, de, fr, sr)",
+    )
     gen_parser.add_argument("--cfg-scale", type=float, default=3.0, help="Guidance scale")
     gen_parser.add_argument(
         "--max-words-per-chunk",
@@ -119,6 +130,7 @@ Examples:
             text=args.text,
             voice=args.voice,
             voice_prompt=args.reference_audio,
+            language=args.language,
             cfg_scale=args.cfg_scale,
             max_new_tokens=4096,
             max_words_per_chunk=args.max_words_per_chunk if args.max_words_per_chunk > 0 else None,

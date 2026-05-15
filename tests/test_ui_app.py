@@ -36,6 +36,7 @@ class UIAppTests(unittest.TestCase):
                 model_choice="kugelaudio-0-open",
                 cfg_scale=3.0,
                 max_tokens=2048,
+                language_choice="🇩🇪 German (de)",
                 max_words_per_chunk=120,
                 overlap_sentences=2,
                 chunking_strategy="syntax-aware",
@@ -45,6 +46,7 @@ class UIAppTests(unittest.TestCase):
 
         kwargs = gen.call_args.kwargs
         self.assertEqual(kwargs["text"], "Hello world.")
+        self.assertEqual(kwargs["language"], "de")
         self.assertEqual(kwargs["voice"], "default")
         self.assertEqual(kwargs["max_words_per_chunk"], 120)
         self.assertEqual(kwargs["overlap_sentences"], 2)
@@ -69,6 +71,7 @@ class UIAppTests(unittest.TestCase):
             )
 
         self.assertIsNone(gen.call_args.kwargs["max_words_per_chunk"])
+        self.assertIsNone(gen.call_args.kwargs["language"])
         self.assertEqual(gen.call_args.kwargs["overlap_sentences"], 0)
         self.assertEqual(gen.call_args.kwargs["chunking_strategy"], "heuristic")
 

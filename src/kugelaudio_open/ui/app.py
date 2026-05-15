@@ -8,6 +8,8 @@ from typing import Optional, Tuple
 import numpy as np
 import torch
 
+from kugelaudio_open.languages import get_language_dropdown_choices, parse_language_dropdown_choice
+
 try:
     import gradio as gr
 
@@ -189,6 +191,7 @@ def generate_speech(
     model_choice: str = "kugelaudio-0-open",
     cfg_scale: float = 3.0,
     max_tokens: int = 2048,
+    language_choice: str = "Auto-detect",
     max_words_per_chunk: int = 0,
     overlap_sentences: int = 0,
     chunking_strategy: str = "heuristic",
@@ -204,6 +207,7 @@ def generate_speech(
         model_choice: Model variant to use
         cfg_scale: Classifier-free guidance scale
         max_tokens: Maximum generation tokens
+        language_choice: Optional UI language hint choice
         max_words_per_chunk: Enable chunking when greater than 0
         overlap_sentences: Number of trailing completed sentences to reuse as
             context between chunks
@@ -287,8 +291,10 @@ def generate_speech(
             )
             kwargs["voice_prompt"] = ref_audio
 
+    language = parse_language_dropdown_choice(language_choice)
+
     print(
-        f"[Generation] Using model: {model_id}, voice={voice_name}, cfg_scale={cfg_scale}, max_tokens={max_tokens}, max_words_per_chunk={max_words_per_chunk}, overlap_sentences={overlap_sentences}, chunking_strategy={chunking_strategy}, pause_mode={pause_mode}, crossfade_ms={crossfade_ms}"
+        f"[Generation] Using model: {model_id}, voice={voice_name}, language={language}, cfg_scale={cfg_scale}, max_tokens={max_tokens}, max_words_per_chunk={max_words_per_chunk}, overlap_sentences={overlap_sentences}, chunking_strategy={chunking_strategy}, pause_mode={pause_mode}, crossfade_ms={crossfade_ms}"
     )
 
     from kugelaudio_open.utils import generate_speech as generate_speech_util
@@ -297,6 +303,7 @@ def generate_speech(
         model=model,
         processor=processor,
         text=text.strip(),
+        language=language,
         cfg_scale=cfg_scale,
         max_new_tokens=max_tokens,
         max_words_per_chunk=max_words_per_chunk if max_words_per_chunk > 0 else None,
@@ -435,6 +442,12 @@ def create_app() -> "gr.Blocks":
                                 label="Max Tokens",
                                 info="Maximum generation length",
                             )
+                            language_choice = gr.Dropdown(
+                                choices=get_language_dropdown_choices(),
+                                value="Auto-detect",
+                                label="Language Hint",
+                                info="Optional language hint for short or ambiguous text",
+                            )
                             max_words_per_chunk = gr.Slider(
                                 minimum=0,
                                 maximum=500,
@@ -505,6 +518,7 @@ def create_app() -> "gr.Blocks":
                         model_choice,
                         cfg_scale,
                         max_tokens,
+                        language_choice,
                         max_words_per_chunk,
                         overlap_sentences,
                         chunking_strategy,
