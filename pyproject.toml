@@ -40,6 +40,7 @@ dependencies = [
     "tqdm>=4.65.0",
     "audioseal>=0.1.0",
     "gradio>=6.2.0",
+    "hf-transfer>=0.1.9",
 ]
 
 [project.optional-dependencies]
@@ -49,7 +50,10 @@ dependencies = [
 cpu = [
     "torch>=2.0.0",
 ]
-cuda = [
+cuda12 = [
+    "torch>=2.0.0",
+]
+cuda13 = [
     "torch>=2.0.0",
 ]
 
@@ -90,10 +94,11 @@ kugelaudio = "kugelaudio_open.cli:main"
 conflicts = [
     [
         { extra = "cpu" },
-        { extra = "cuda" },
+        { extra = "cuda12" },
+        { extra = "cuda13" },
     ],
 ]
-exclude-newer = "14 days"
+#exclude-newer = "14 days"
 
 [tool.uv.sources]
 torch = [
@@ -104,6 +109,14 @@ torch = [
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
+
+[[tool.uv.index]]
+name = "cuda12"
+url = "https://download.pytorch.org/whl/cu126"
+
+[[tool.uv.index]]
+name = "cuda13"
+url = "https://download.pytorch.org/whl/cu132"
 
 [tool.setuptools.packages.find]
 where = ["src"]
