@@ -195,6 +195,7 @@ def generate_speech(
     max_words_per_chunk: int = 0,
     overlap_sentences: int = 0,
     chunking_strategy: str = "heuristic",
+    enable_watermark: bool = False,
     pause_mode: str = "punctuation",
     crossfade_ms: int = 30,
 ) -> Tuple[int, np.ndarray]:
@@ -212,14 +213,13 @@ def generate_speech(
         overlap_sentences: Number of trailing completed sentences to reuse as
             context between chunks
         chunking_strategy: Chunk planning strategy (`heuristic` or `syntax-aware`)
+        enable_watermark: Whether to apply AudioSeal watermarking
         pause_mode: Pause insertion mode for chunked output
         crossfade_ms: Crossfade duration between chunks in milliseconds
 
     Returns:
         Tuple of (sample_rate, audio_array)
 
-    Note:
-        All generated audio is automatically watermarked for identification.
     """
     if not text.strip():
         raise gr.Error("Please enter some text to synthesize.")
@@ -294,7 +294,7 @@ def generate_speech(
     language = parse_language_dropdown_choice(language_choice)
 
     print(
-        f"[Generation] Using model: {model_id}, voice={voice_name}, language={language}, cfg_scale={cfg_scale}, max_tokens={max_tokens}, max_words_per_chunk={max_words_per_chunk}, overlap_sentences={overlap_sentences}, chunking_strategy={chunking_strategy}, pause_mode={pause_mode}, crossfade_ms={crossfade_ms}"
+        f"[Generation] Using model: {model_id}, voice={voice_name}, language={language}, cfg_scale={cfg_scale}, max_tokens={max_tokens}, max_words_per_chunk={max_words_per_chunk}, overlap_sentences={overlap_sentences}, chunking_strategy={chunking_strategy}, enable_watermark={enable_watermark}, pause_mode={pause_mode}, crossfade_ms={crossfade_ms}"
     )
 
     from kugelaudio_open.utils import generate_speech as generate_speech_util
@@ -309,6 +309,7 @@ def generate_speech(
         max_words_per_chunk=max_words_per_chunk if max_words_per_chunk > 0 else None,
         overlap_sentences=overlap_sentences,
         chunking_strategy=chunking_strategy,
+        apply_watermark=enable_watermark,
         pause_mode=pause_mode,
         crossfade_ms=crossfade_ms,
         **kwargs,
@@ -470,6 +471,11 @@ def create_app() -> "gr.Blocks":
                                 label="Chunking Strategy",
                                 info="Use an optional syntax-aware sentence segmenter when available",
                             )
+                            enable_watermark = gr.Checkbox(
+                                value=False,
+                                label="Enable AudioSeal Watermark",
+                                info="Off by default. Enable to embed an imperceptible watermark in generated audio.",
+                            )
                             pause_mode = gr.Dropdown(
                                 choices=["none", "punctuation", "speaker-aware"],
                                 value="punctuation",
@@ -522,6 +528,7 @@ def create_app() -> "gr.Blocks":
                         max_words_per_chunk,
                         overlap_sentences,
                         chunking_strategy,
+                        enable_watermark,
                         pause_mode,
                         crossfade_ms,
                     ],
@@ -570,8 +577,8 @@ def create_app() -> "gr.Blocks":
                 - **AR + Diffusion Architecture**: Uses autoregressive language modeling 
                   with diffusion-based speech synthesis for high-quality output
                 - **Voice Cloning**: Clone any voice with just a few seconds of reference audio
-                - **Audio Watermarking**: All generated audio contains an imperceptible watermark 
-                  using [Facebook's AudioSeal](https://huggingface.co/facebook/audioseal) technology
+                - **Audio Watermarking**: Optional imperceptible watermarking using 
+                  [Facebook's AudioSeal](https://huggingface.co/facebook/audioseal) technology
                 
                 ### Models
                 
@@ -591,7 +598,7 @@ def create_app() -> "gr.Blocks":
                 - Impersonating individuals without consent
                 - Any illegal or harmful purposes
                 
-                All generated audio is watermarked to enable detection.
+                Watermarking can be enabled explicitly when detection support is desired.
                 """
                 )
 

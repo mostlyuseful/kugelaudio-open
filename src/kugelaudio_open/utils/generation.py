@@ -75,6 +75,7 @@ def generate_speech(
     max_words_per_chunk: Optional[int] = None,
     overlap_sentences: int = 0,
     chunking_strategy: str = "heuristic",
+    apply_watermark: bool = False,
     pause_mode: str = "punctuation",
     crossfade_ms: int = 30,
 ) -> torch.Tensor:
@@ -99,11 +100,12 @@ def generate_speech(
         overlap_sentences: Number of trailing completed sentences from the
             previous chunk to prepend as prompt context for the next chunk
         chunking_strategy: Chunk planning strategy (`heuristic` or `syntax-aware`)
+        apply_watermark: Whether to apply AudioSeal watermarking
         pause_mode: Pause insertion strategy for stitched multi-chunk output
         crossfade_ms: Crossfade duration between chunks in milliseconds
 
     Returns:
-        Generated audio tensor (watermarked)
+        Generated audio tensor
     """
     if device is None:
         device = next(model.parameters()).device
@@ -119,6 +121,7 @@ def generate_speech(
             cfg_scale=cfg_scale,
             max_new_tokens=max_new_tokens,
             device=device,
+            apply_watermark=apply_watermark,
         )
 
     plan = split_text_into_chunks(
@@ -139,6 +142,7 @@ def generate_speech(
             cfg_scale=cfg_scale,
             max_new_tokens=max_new_tokens,
             device=device,
+            apply_watermark=apply_watermark,
         )
 
     print(
@@ -177,7 +181,7 @@ def generate_speech(
         crossfade_ms=crossfade_ms,
         sample_rate=24000,
     )
-    if hasattr(model, "_apply_watermark"):
+    if apply_watermark and hasattr(model, "_apply_watermark"):
         stitched = model._apply_watermark(stitched, sample_rate=24000)
     return stitched
 
@@ -192,6 +196,7 @@ def _generate_single_pass(
     cfg_scale: float,
     max_new_tokens: int,
     device: Union[str, torch.device],
+    apply_watermark: bool,
 ) -> torch.Tensor:
     inputs = processor(
         text=text,
@@ -207,6 +212,7 @@ def _generate_single_pass(
             **inputs,
             cfg_scale=cfg_scale,
             max_new_tokens=max_new_tokens,
+            do_watermark=apply_watermark,
         )
 
     audio = outputs.speech_outputs[0] if outputs.speech_outputs else None

@@ -37,6 +37,7 @@ class CLITests(unittest.TestCase):
         "default",
         "--reference-audio",
         "ref.wav",
+        "--watermark",
         "-o",
         "out.wav",
     ])
@@ -56,6 +57,7 @@ class CLITests(unittest.TestCase):
         self.assertEqual(kwargs["max_words_per_chunk"], 123)
         self.assertEqual(kwargs["overlap_sentences"], 2)
         self.assertEqual(kwargs["chunking_strategy"], "syntax-aware")
+        self.assertTrue(kwargs["apply_watermark"])
         self.assertEqual(kwargs["pause_mode"], "speaker-aware")
         self.assertEqual(kwargs["crossfade_ms"], 42)
         self.assertEqual(processor.saved, [("audio", "out.wav")])
@@ -76,6 +78,7 @@ class CLITests(unittest.TestCase):
             cli.main()
 
         self.assertIsNone(gen.call_args.kwargs["max_words_per_chunk"])
+        self.assertFalse(gen.call_args.kwargs["apply_watermark"])
 
     @patch("kugelaudio_open.cli.sys.argv", [
         "kugelaudio",

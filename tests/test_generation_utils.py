@@ -64,6 +64,7 @@ class GenerateSpeechTests(unittest.TestCase):
             processor,
             "Hello world.",
             language="de",
+            apply_watermark=False,
             max_words_per_chunk=None,
         )
 
@@ -72,13 +73,19 @@ class GenerateSpeechTests(unittest.TestCase):
         self.assertEqual(processor.calls[0]["language"], "de")
         self.assertEqual(len(model.generate_calls), 1)
         self.assertEqual(model.watermark_calls, [])
-        self.assertNotIn("do_watermark", model.generate_calls[0])
+        self.assertFalse(model.generate_calls[0]["do_watermark"])
 
     def test_single_pass_when_chunking_produces_one_chunk(self):
         model = _FakeModel()
         processor = _FakeProcessor()
 
-        audio = generate_speech(model, processor, "Hello world.", max_words_per_chunk=10)
+        audio = generate_speech(
+            model,
+            processor,
+            "Hello world.",
+            apply_watermark=False,
+            max_words_per_chunk=10,
+        )
 
         self.assertTrue(torch.equal(audio, torch.tensor([1.0, 1.0])))
         self.assertEqual(len(processor.calls), 1)
@@ -97,6 +104,7 @@ class GenerateSpeechTests(unittest.TestCase):
             voice_prompt="ref.wav",
             language="fr",
             max_words_per_chunk=2,
+            apply_watermark=True,
             pause_mode="none",
             crossfade_ms=0,
         )
@@ -130,6 +138,7 @@ class GenerateSpeechTests(unittest.TestCase):
                 overlap_sentences=1,
                 language="es",
                 chunking_strategy="heuristic",
+                apply_watermark=True,
                 pause_mode="none",
                 crossfade_ms=0,
             )
@@ -169,11 +178,28 @@ class GenerateSpeechTests(unittest.TestCase):
                 "Alpha. Beta.",
                 max_words_per_chunk=1,
                 chunking_strategy="syntax-aware",
+                apply_watermark=False,
                 pause_mode="none",
                 crossfade_ms=0,
             )
 
         self.assertEqual(planner.call_args.kwargs["chunking_strategy"], "syntax-aware")
+
+    def test_single_pass_can_enable_watermark(self):
+        model = _FakeModel()
+        processor = _FakeProcessor()
+
+        audio = generate_speech(
+            model,
+            processor,
+            "Hello world.",
+            apply_watermark=True,
+            max_words_per_chunk=None,
+        )
+
+        self.assertTrue(model.generate_calls[0]["do_watermark"])
+        self.assertEqual(model.watermark_calls, [])
+        self.assertTrue(torch.equal(audio, torch.tensor([1.0, 1.0])))
 
 
 if __name__ == "__main__":

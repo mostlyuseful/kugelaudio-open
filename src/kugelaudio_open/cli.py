@@ -34,6 +34,9 @@ Examples:
   # Generate with syntax-aware chunk planning
   kugelaudio generate "Dr. Smith arrived. Then left." --max-words-per-chunk 20 --chunking-strategy syntax-aware -o output.wav
 
+  # Enable AudioSeal watermarking explicitly
+  kugelaudio generate "Hello world!" --watermark -o output.wav
+
   # Check watermark in audio file
   kugelaudio verify audio.wav
         """,
@@ -65,6 +68,11 @@ Examples:
         help="Optional ISO 639-1 language code hint (for example: en, de, fr, sr)",
     )
     gen_parser.add_argument("--cfg-scale", type=float, default=3.0, help="Guidance scale")
+    gen_parser.add_argument(
+        "--watermark",
+        action="store_true",
+        help="Enable AudioSeal watermarking (default: off)",
+    )
     gen_parser.add_argument(
         "--max-words-per-chunk",
         type=int,
@@ -136,6 +144,7 @@ Examples:
             max_words_per_chunk=args.max_words_per_chunk if args.max_words_per_chunk > 0 else None,
             overlap_sentences=args.overlap_sentences,
             chunking_strategy=args.chunking_strategy,
+            apply_watermark=args.watermark,
             pause_mode=args.pause_mode,
             crossfade_ms=args.crossfade_ms,
         )
