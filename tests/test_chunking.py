@@ -1,10 +1,15 @@
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from kugelaudio_open.utils.chunking import ChunkPlan, split_text_into_chunks
+from kugelaudio_open.utils.chunking import (
+    ChunkPlan,
+    get_available_chunking_strategies,
+    split_text_into_chunks,
+)
 
 
 class SplitTextIntoChunksTests(unittest.TestCase):
@@ -57,6 +62,13 @@ class SplitTextIntoChunksTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "overlap_sentences"):
             split_text_into_chunks("hello world", 10, overlap_sentences=-1)
 
+    def test_rejects_unknown_chunking_strategy(self):
+        with self.assertRaisesRegex(ValueError, "chunking_strategy"):
+            split_text_into_chunks("hello world", 10, chunking_strategy="bogus")
+
+    def test_reports_available_chunking_strategies(self):
+        self.assertEqual(get_available_chunking_strategies(), ["heuristic", "syntax-aware"])
+
     def test_overlap_disabled_preserves_existing_chunks(self):
         baseline = split_text_into_chunks("One two. Three four. Five six.", 4)
         overlapped = split_text_into_chunks("One two. Three four. Five six.", 4, overlap_sentences=0)
@@ -86,6 +98,51 @@ class SplitTextIntoChunksTests(unittest.TestCase):
                 "Three four. Five six.",
             ],
         )
+
+    def test_syntax_aware_strategy_improves_abbreviation_sentence_split(self):
+        class _FakeSegmenter:
+            def segment(self, text):
+                return ["Dr. Smith arrived.", "Then left."]
+
+        with patch(
+            "kugelaudio_open.utils.chunking._load_syntax_aware_segmenter",
+            return_value=_FakeSegmenter(),
+        ):
+            plan = split_text_into_chunks(
+                "Dr. Smith arrived. Then left.",
+                4,
+                chunking_strategy="syntax-aware",
+            )
+
+        self.assertEqual(plan.new_texts, ["Dr. Smith arrived.", "Then left."])
+
+    def test_syntax_aware_strategy_falls_back_when_backend_unavailable(self):
+        with patch("kugelaudio_open.utils.chunking._load_syntax_aware_segmenter", return_value=None):
+            plan = split_text_into_chunks(
+                "Dr. Smith arrived. Then left.",
+                4,
+                chunking_strategy="syntax-aware",
+            )
+
+        self.assertEqual(plan.new_texts, ["Dr. Smith arrived.", "Then left."])
+
+    def test_syntax_aware_strategy_can_split_on_phrase_boundaries(self):
+        class _FakeSegmenter:
+            def segment(self, text):
+                return [text]
+
+        with patch(
+            "kugelaudio_open.utils.chunking._load_syntax_aware_segmenter",
+            return_value=_FakeSegmenter(),
+        ):
+            plan = split_text_into_chunks(
+                "alpha beta and gamma delta and epsilon zeta",
+                3,
+                chunking_strategy="syntax-aware",
+            )
+
+        self.assertEqual(plan.new_texts, ["alpha beta", "and gamma delta", "and epsilon zeta"])
+        self.assertEqual(plan.boundary_types, ["clause", "clause", "clause"])
 
 
 if __name__ == "__main__":

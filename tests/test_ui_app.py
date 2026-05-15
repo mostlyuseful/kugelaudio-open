@@ -38,6 +38,7 @@ class UIAppTests(unittest.TestCase):
                 max_tokens=2048,
                 max_words_per_chunk=120,
                 overlap_sentences=2,
+                chunking_strategy="syntax-aware",
                 pause_mode="speaker-aware",
                 crossfade_ms=45,
             )
@@ -47,6 +48,7 @@ class UIAppTests(unittest.TestCase):
         self.assertEqual(kwargs["voice"], "default")
         self.assertEqual(kwargs["max_words_per_chunk"], 120)
         self.assertEqual(kwargs["overlap_sentences"], 2)
+        self.assertEqual(kwargs["chunking_strategy"], "syntax-aware")
         self.assertEqual(kwargs["pause_mode"], "speaker-aware")
         self.assertEqual(kwargs["crossfade_ms"], 45)
         self.assertEqual(out[0], 24000)
@@ -68,6 +70,7 @@ class UIAppTests(unittest.TestCase):
 
         self.assertIsNone(gen.call_args.kwargs["max_words_per_chunk"])
         self.assertEqual(gen.call_args.kwargs["overlap_sentences"], 0)
+        self.assertEqual(gen.call_args.kwargs["chunking_strategy"], "heuristic")
 
     def test_generate_speech_preserves_reference_audio_for_chunked_mode(self):
         model = _FakeModel()

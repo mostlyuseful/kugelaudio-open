@@ -191,6 +191,7 @@ def generate_speech(
     max_tokens: int = 2048,
     max_words_per_chunk: int = 0,
     overlap_sentences: int = 0,
+    chunking_strategy: str = "heuristic",
     pause_mode: str = "punctuation",
     crossfade_ms: int = 30,
 ) -> Tuple[int, np.ndarray]:
@@ -206,6 +207,7 @@ def generate_speech(
         max_words_per_chunk: Enable chunking when greater than 0
         overlap_sentences: Number of trailing completed sentences to reuse as
             context between chunks
+        chunking_strategy: Chunk planning strategy (`heuristic` or `syntax-aware`)
         pause_mode: Pause insertion mode for chunked output
         crossfade_ms: Crossfade duration between chunks in milliseconds
 
@@ -286,7 +288,7 @@ def generate_speech(
             kwargs["voice_prompt"] = ref_audio
 
     print(
-        f"[Generation] Using model: {model_id}, voice={voice_name}, cfg_scale={cfg_scale}, max_tokens={max_tokens}, max_words_per_chunk={max_words_per_chunk}, overlap_sentences={overlap_sentences}, pause_mode={pause_mode}, crossfade_ms={crossfade_ms}"
+        f"[Generation] Using model: {model_id}, voice={voice_name}, cfg_scale={cfg_scale}, max_tokens={max_tokens}, max_words_per_chunk={max_words_per_chunk}, overlap_sentences={overlap_sentences}, chunking_strategy={chunking_strategy}, pause_mode={pause_mode}, crossfade_ms={crossfade_ms}"
     )
 
     from kugelaudio_open.utils import generate_speech as generate_speech_util
@@ -299,6 +301,7 @@ def generate_speech(
         max_new_tokens=max_tokens,
         max_words_per_chunk=max_words_per_chunk if max_words_per_chunk > 0 else None,
         overlap_sentences=overlap_sentences,
+        chunking_strategy=chunking_strategy,
         pause_mode=pause_mode,
         crossfade_ms=crossfade_ms,
         **kwargs,
@@ -448,6 +451,12 @@ def create_app() -> "gr.Blocks":
                                 label="Overlap Sentences",
                                 info="Reuse trailing completed sentences as prompt context between chunks",
                             )
+                            chunking_strategy = gr.Dropdown(
+                                choices=["heuristic", "syntax-aware"],
+                                value="heuristic",
+                                label="Chunking Strategy",
+                                info="Use an optional syntax-aware sentence segmenter when available",
+                            )
                             pause_mode = gr.Dropdown(
                                 choices=["none", "punctuation", "speaker-aware"],
                                 value="punctuation",
@@ -498,6 +507,7 @@ def create_app() -> "gr.Blocks":
                         max_tokens,
                         max_words_per_chunk,
                         overlap_sentences,
+                        chunking_strategy,
                         pause_mode,
                         crossfade_ms,
                     ],

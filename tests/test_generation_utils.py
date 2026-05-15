@@ -118,6 +118,7 @@ class GenerateSpeechTests(unittest.TestCase):
                 "One two. Three four. Five six.",
                 max_words_per_chunk=2,
                 overlap_sentences=1,
+                chunking_strategy="heuristic",
                 pause_mode="none",
                 crossfade_ms=0,
             )
@@ -135,6 +136,32 @@ class GenerateSpeechTests(unittest.TestCase):
         self.assertEqual(len(model.generate_calls), 3)
         self.assertEqual(len(model.watermark_calls), 1)
         self.assertTrue(torch.equal(audio, torch.tensor([11.0, 11.0, 12.0, 12.0, 13.0, 13.0])))
+
+    def test_chunked_generation_forwards_chunking_strategy_to_planner(self):
+        model = _FakeModel()
+        processor = _FakeProcessor()
+
+        with patch("kugelaudio_open.utils.generation.split_text_into_chunks") as planner:
+            planner.return_value = type(
+                "Plan",
+                (),
+                {
+                    "chunks": ["Alpha.", "Beta."],
+                    "new_texts": ["Alpha.", "Beta."],
+                    "boundary_types": ["sentence", "sentence"],
+                },
+            )()
+            generate_speech(
+                model,
+                processor,
+                "Alpha. Beta.",
+                max_words_per_chunk=1,
+                chunking_strategy="syntax-aware",
+                pause_mode="none",
+                crossfade_ms=0,
+            )
+
+        self.assertEqual(planner.call_args.kwargs["chunking_strategy"], "syntax-aware")
 
 
 if __name__ == "__main__":

@@ -26,6 +26,9 @@ Examples:
   # Generate with reference audio prompt
   kugelaudio generate "Hello world!" --reference-audio ref.wav -o output.wav
 
+  # Generate with syntax-aware chunk planning
+  kugelaudio generate "Dr. Smith arrived. Then left." --max-words-per-chunk 20 --chunking-strategy syntax-aware -o output.wav
+
   # Check watermark in audio file
   kugelaudio verify audio.wav
         """,
@@ -62,6 +65,12 @@ Examples:
         type=int,
         default=0,
         help="Number of trailing completed sentences to reuse as context between chunks",
+    )
+    gen_parser.add_argument(
+        "--chunking-strategy",
+        choices=["heuristic", "syntax-aware"],
+        default="heuristic",
+        help="Chunk planning strategy to use when long-text chunking is enabled",
     )
     gen_parser.add_argument(
         "--pause-mode",
@@ -114,6 +123,7 @@ Examples:
             max_new_tokens=4096,
             max_words_per_chunk=args.max_words_per_chunk if args.max_words_per_chunk > 0 else None,
             overlap_sentences=args.overlap_sentences,
+            chunking_strategy=args.chunking_strategy,
             pause_mode=args.pause_mode,
             crossfade_ms=args.crossfade_ms,
         )

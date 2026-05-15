@@ -73,6 +73,7 @@ def generate_speech(
     device: Optional[Union[str, torch.device]] = None,
     max_words_per_chunk: Optional[int] = None,
     overlap_sentences: int = 0,
+    chunking_strategy: str = "heuristic",
     pause_mode: str = "punctuation",
     crossfade_ms: int = 30,
 ) -> torch.Tensor:
@@ -95,6 +96,7 @@ def generate_speech(
         max_words_per_chunk: Enable chunking when set to a positive integer
         overlap_sentences: Number of trailing completed sentences from the
             previous chunk to prepend as prompt context for the next chunk
+        chunking_strategy: Chunk planning strategy (`heuristic` or `syntax-aware`)
         pause_mode: Pause insertion strategy for stitched multi-chunk output
         crossfade_ms: Crossfade duration between chunks in milliseconds
 
@@ -120,6 +122,7 @@ def generate_speech(
         text,
         max_words_per_chunk,
         overlap_sentences=overlap_sentences,
+        chunking_strategy=chunking_strategy,
     )
     if len(plan.chunks) == 1:
         print("[Chunking] Chunking enabled but skipped: single chunk")
@@ -136,7 +139,8 @@ def generate_speech(
 
     print(
         f"[Chunking] Enabled: {len(plan.chunks)} chunks, boundary_types={plan.boundary_types}, "
-        f"overlap_sentences={overlap_sentences}, pause_mode={pause_mode}, crossfade_ms={crossfade_ms}"
+        f"chunking_strategy={chunking_strategy}, overlap_sentences={overlap_sentences}, "
+        f"pause_mode={pause_mode}, crossfade_ms={crossfade_ms}"
     )
 
     chunk_outputs = []

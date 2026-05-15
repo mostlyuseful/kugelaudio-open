@@ -59,6 +59,9 @@ dev = [
     "black>=23.0.0",
     "ruff>=0.1.0",
 ]
+syntax = [
+    "pysbd>=0.3.4",
+]
 server = [
     "fastapi>=0.100.0",
     "uvicorn[standard]>=0.22.0",

@@ -25,6 +25,8 @@ class CLITests(unittest.TestCase):
         "123",
         "--overlap-sentences",
         "2",
+        "--chunking-strategy",
+        "syntax-aware",
         "--pause-mode",
         "speaker-aware",
         "--crossfade-ms",
@@ -50,6 +52,7 @@ class CLITests(unittest.TestCase):
         self.assertEqual(kwargs["voice_prompt"], "ref.wav")
         self.assertEqual(kwargs["max_words_per_chunk"], 123)
         self.assertEqual(kwargs["overlap_sentences"], 2)
+        self.assertEqual(kwargs["chunking_strategy"], "syntax-aware")
         self.assertEqual(kwargs["pause_mode"], "speaker-aware")
         self.assertEqual(kwargs["crossfade_ms"], 42)
         self.assertEqual(processor.saved, [("audio", "out.wav")])
